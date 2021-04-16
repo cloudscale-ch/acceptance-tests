@@ -1,0 +1,16 @@
+filelock
+flake8
+invoke
+isodate
+observable
+paramiko
+psutil
+pytest
+pytest-repeat
+pytest-rerunfailures
+pytest-testinfra
+pytest-xdist
+requests
+rich
+tabulate
+urllib3>=1.26.2

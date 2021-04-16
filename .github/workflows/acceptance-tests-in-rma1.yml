@@ -1,0 +1,56 @@
+name: Acceptance Tests in RMA1
+
+on:
+  # Tests are only run on a regular schedule, or if they are manually started.
+  #
+  # * Pull requests are disabled because anonymous users could cause resource
+  #   usage in the cloud, causing unintended costs.
+  #
+  # * Changes to the main branch are not tested, as we do that nightly anyway
+  #   and the expectation is that new tests are tested locally, in a more
+  #   explicit and change-specific way.
+  #
+
+  # Scheduled tests
+  schedule:
+    - cron: '0 0 * * *'
+
+  # Manual execution through the UI by collaborators
+  workflow_dispatch:
+
+jobs:
+  acceptance-tests-in-rma1:
+    runs-on: [self-hosted, rma1]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Setup Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.6
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests
+        env:
+          CLOUDSCALE_API_TOKEN: ${{ secrets.CLOUDSCALE_API_TOKEN }}
+        run: |
+          pytest . --zone=rma1 -n 4 -v --color=yes --reruns=1
+
+      - name: Upload events log
+        if: always()
+        uses: actions/upload-artifact@v2
+        with:
+          name: events-log
+          path: events
+
+      - name: Cleanup
+        if: always()
+        env:
+          CLOUDSCALE_API_TOKEN: ${{ secrets.CLOUDSCALE_API_TOKEN }}
+        run: invoke cleanup

@@ -1,0 +1,11 @@
+# Ignore tox directory
+/.tox
+
+# Ignore Python bytecode
+__pycache__
+
+# Ignore virtual environment
+venv
+
+# Contains private environment variables
+private

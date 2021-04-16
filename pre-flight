@@ -1,0 +1,142 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC1091,SC2059,SC2086
+#
+# Activates the test environment, installing dependencies, and updating tests
+# and dependencies. Even though bash is specified above (for shellcheck), this
+# activation script should work for both BASH and ZSH.
+#
+function in-virtualenv() {
+    if [[ "${VIRTUAL_ENV-}" != "" ]]; then
+        true; return
+    else
+        false; return
+    fi
+}
+
+function has-virtualenv() {
+    if test -d ./venv; then
+        true
+    else
+        false
+    fi
+}
+
+function create-virtualenv() {
+    python3 -m venv venv
+}
+
+function activate-virtualenv() {
+    source venv/bin/activate
+}
+
+function switch-directory() {
+    # Script source both BASH and ZSH
+    local source="${BASH_SOURCE:-${(%):-%x}}"
+
+    # If the source is relative, prefix with the current directory
+    if [[ $source != /* ]]; then
+        source="$PWD/$source"
+    fi
+
+    local parent
+    parent="$(dirname "$source")"
+
+    if ! cd "$parent"; then
+        echo "Could not switch to $parent"
+        false; return
+    fi
+
+    if ! test -e './pre-flight'; then
+        echo "Could not switch to $parent"
+        false; return
+    fi
+
+    true; return
+}
+
+function is-supported-python() {
+    local major
+    major="$(python3 -c 'import sys; print(sys.version_info[0])')"
+
+    local minor
+    minor="$(python3 -c 'import sys; print(sys.version_info[1])')"
+
+    if (( major < 3 )); then
+        echo "Python $major.$minor is too old, please use 3.6+"
+        false; return
+    fi
+
+    if (( minor < 6 )); then
+        echo "Python $major.$minor is too old, please use 3.6+"
+        false; return
+    fi
+
+    if ! python3 -c "import ssl" > /dev/null; then
+        echo "Your Python setup does not support SSL. Please reinstall Python."
+        false; return
+    fi
+
+    true; return
+}
+
+function is-git-clean() {
+    if git diff-index --quiet HEAD; then
+        true
+    else
+        false
+    fi
+}
+
+function activate-acceptance-tests() {
+
+    local gc='\e[0;32m'  # green
+    local bc='\e[1;34m'  # blue
+    local nc='\e[0m'  # reset
+
+    local doing='*'
+    local done="${gc}✓${nc}"
+
+    printf "Preparing test-environment for cloudscale.ch acceptance tests…\n\n"
+
+    if ! is-supported-python; then
+        return
+    fi
+
+    if ! switch-directory; then
+        return
+    fi
+
+    if ! has-virtualenv; then
+        printf "%b Creating virtual environment\r" "$doing"
+        create-virtualenv
+        printf "%b Created virtual environment \n" "$done"
+    fi
+
+    if ! in-virtualenv; then
+        activate-virtualenv
+    fi
+
+    printf "%b Updating tests\r" "$doing"
+    git pull -q
+    printf "%b Updated tests \n" "$done"
+
+    printf "%b Updating requirements\r" "$doing"
+    pip install --upgrade pip -q
+    pip install -r requirements.txt --upgrade -q
+    printf "%b Updated requirements \n\n" "$done"
+
+    if ! test -e ./private; then
+        printf "Please enter your cloudscale.ch API token: "
+        read -s -r token
+        printf "\n\n"
+
+        printf "export CLOUDSCALE_API_TOKEN=%s\n" "$token" > private
+    fi
+
+    chmod 0600 private
+    source private
+
+    printf "You are now ready to test by typing %b\n\n" "${bc}py.test${nc}"
+}
+
+activate-acceptance-tests

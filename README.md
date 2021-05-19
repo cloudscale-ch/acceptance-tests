@@ -17,9 +17,10 @@ These tests are run regularly against our public infrastructure as well as our i
 | **Custom Image**    | [test_custom_image_with_slug](./test_custom_image.py#L11)                        | custom   |
 |                     | [test_custom_image_with_uuid](./test_custom_image.py#L22)                        | custom   |
 | **Floating IP**     | [test_floating_ip_connectivity](./test_floating_ip.py#L14)                       | default  |
-|                     | [test_floating_ip_stability](./test_floating_ip.py#L32)                          | default  |
-|                     | [test_floating_ip_failover](./test_floating_ip.py#L75)                           | default  |
-|                     | [test_floating_network](./test_floating_ip.py#L117)                              | default  |
+|                     | [test_multiple_floating_ips](./test_floating_ip.py#L32)                          | default  |
+|                     | [test_floating_ip_stability](./test_floating_ip.py#L54)                          | default  |
+|                     | [test_floating_ip_failover](./test_floating_ip.py#L97)                           | default  |
+|                     | [test_floating_network](./test_floating_ip.py#L139)                              | default  |
 | **Private Network** | [test_private_ip_address_on_all_images](./test_private_network.py#L14)           | all      |
 |                     | [test_private_network_connectivity_on_all_images](./test_private_network.py#L35) | all      |
 |                     | [test_multiple_private_network_interfaces](./test_private_network.py#L88)        | default  |

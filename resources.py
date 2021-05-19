@@ -7,6 +7,7 @@ from errors import ServerError
 from errors import Timeout
 from events import with_trigger
 from functools import lru_cache
+from hashlib import blake2b
 from ipaddress import ip_address
 from ipaddress import ip_interface
 from ipaddress import ip_network
@@ -529,14 +530,30 @@ class Server(CloudscaleResource):
         if fail_if_missing:
             raise AssertionError(f"No IP address: {iface_type}/{ip_version}")
 
+    def interface_name(self, floating_ip):
+        """ Generates a unique interface name for the given Floating IP.
+
+        Since this might have to deal with IPv6, we create a hash to ensure
+        that the interface name length is less than 16.
+
+        """
+        address = str(floating_ip).encode('utf-8')
+        digest = blake2b(address, digest_size=6).hexdigest()
+
+        return f'f-{digest}'
+
     def configure_floating_ip(self, floating_ip):
+        interface = self.interface_name(floating_ip)
+
         self.assert_run(oneliner(f"""
-            sudo ip link add floating-{floating_ip.version} type dummy &&
-            sudo ip addr add {floating_ip} dev floating-{floating_ip.version}
+            sudo ip link add {interface} type dummy &&
+            sudo ip addr add {floating_ip} dev {interface}
         """))
 
     def unconfigure_floating_ip(self, floating_ip):
-        self.assert_run(f'sudo ip link delete floating-{floating_ip.version}')
+        interface = self.interface_name(floating_ip)
+
+        self.assert_run(f'sudo ip link delete {interface}')
 
     def configured_ip_addresses(self, **attributes):
         """ Returns all IP addresses configured on any of the interfaces. """
@@ -626,7 +643,8 @@ class Server(CloudscaleResource):
 
 class FloatingIP(CloudscaleResource):
 
-    def __init__(self, request, api, ip_version, region, prefix_length=None):
+    def __init__(self, request, api, ip_version, region, prefix_length=None,
+                 server=None):
         super().__init__(request, api)
 
         self.spec = {
@@ -636,6 +654,9 @@ class FloatingIP(CloudscaleResource):
 
         if prefix_length:
             self.spec['prefix_length'] = prefix_length
+
+        if server:
+            self.spec['server'] = server
 
     def __str__(self):
         return str(self.ip)

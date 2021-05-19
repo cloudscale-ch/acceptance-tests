@@ -29,6 +29,28 @@ def test_floating_ip_connectivity(prober, server, floating_ip):
     prober.ping(floating_ip, count=30, interval=0.5)
 
 
+def test_multiple_floating_ips(prober, server, create_floating_ip):
+    """ A server may have up to fifteen Floating IPs assigned to it. """
+
+    # Create and assign Floating IPs
+    ips = [
+        create_floating_ip(
+            ip_version=4,
+            server=server.uuid
+        ) for _ in range(15)
+    ]
+
+    # Configure the Floating IPs on the server
+    for ip in ips:
+        server.configure_floating_ip(ip)
+
+    # Make sure each Floating IP can be pinged from the prober
+    for ip in ips:
+
+        # Wait up to 15 seconds for the change to propagate
+        prober.ping(ip, timeout=1, tries=15)
+
+
 def test_floating_ip_stability(prober, create_server, server_group,
                                floating_ipv4, floating_ipv6):
     """ Floating IPs can be moved between servers for high availability.

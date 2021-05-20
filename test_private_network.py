@@ -88,14 +88,14 @@ def test_private_network_connectivity_on_all_images(create_server, image,
 def test_multiple_private_network_interfaces(create_server, image,
                                              server_group,
                                              create_private_network):
-    """ Servers can ping each other with up to nine different private network
-    interfaces.
+    """ Servers can ping each other with up to fifteen different private
+    network interfaces.
 
     """
 
-    # Create nine private networks
+    # Create fifteen private networks
     list_of_private_nets = in_parallel(create_private_network, instances=(
-        {'name': f'net-{i}'} for i in range(9)
+        {'name': f'net-{i}'} for i in range(15)
     ))
 
     # Generate subnets on each network
@@ -138,15 +138,8 @@ def test_multiple_private_network_interfaces(create_server, image,
     ))
 
     # Server can ping other server over every private IPv4
-    s1.ping('192.168.0.2', tries=5, wait=1)
-    s1.ping('192.168.1.2', tries=5, wait=1)
-    s1.ping('192.168.2.2', tries=5, wait=1)
-    s1.ping('192.168.3.2', tries=5, wait=1)
-    s1.ping('192.168.4.2', tries=5, wait=1)
-    s1.ping('192.168.5.2', tries=5, wait=1)
-    s1.ping('192.168.6.2', tries=5, wait=1)
-    s1.ping('192.168.7.2', tries=5, wait=1)
-    s1.ping('192.168.8.2', tries=5, wait=1)
+    for octet in range(15):
+        s1.ping(f'192.168.{octet}.2', tries=5, wait=1)
 
 
 def test_no_private_network_port_security(create_server, image, server_group):

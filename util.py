@@ -210,19 +210,19 @@ class FaultTolerantParamikoBackend(ParamikoBackend):
     """ Overrides the ParamikoBackend of testinfra with a version that is
     better equipped to deal with suddenly disconnected SSH connections.
 
-    If there's an issue with the SSH connection, we retry for up to 10
-    seconds. This is necessary because some of the images we use, like
-    Fedora CoreOS, will auto-update themselves right after being booted,
-    which might involve a restart of the SSH daemon.
+    If there's an issue with the SSH connection, we retry for up to three
+    seconds. The default Paramiko backend does this as well, but it only
+    retries a single time.
 
-    The default Paramiko backend does this as well, but it only retries
-    a single time.
+    Additionally, this backend is initialised with a connection factory,
+    instead of a set of configuration parameters.
 
     """
 
-    def __init__(self, client_factory):
+    def __init__(self, client_factory, retries=3):
         super().__init__('paramiko://')
         self.client_factory = client_factory
+        self.retries = 3
 
     @testinfra_cached_property
     def client(self):
@@ -237,7 +237,7 @@ class FaultTolerantParamikoBackend(ParamikoBackend):
     def run(self, command, *args, **kwargs):
         last_error = None
 
-        for _ in range(0, 10):
+        for _ in range(0, self.retries):
             try:
                 return super().run(command, *args, **kwargs)
             except (SSHException, NoValidConnectionsError, TimeoutError) as e:

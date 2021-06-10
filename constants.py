@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import secrets
@@ -56,3 +57,28 @@ RUNTIME_PATH = '.runtime'
 
 # Where locks are stored
 LOCKS_PATH = f'{RUNTIME_PATH}/locks'
+
+# Image specific user data overrides (reserved to handle special cases)
+IMAGE_SPECIFIC_USER_DATA = {
+
+    # Disable auto-updates in Flatcar (they can cause unexpected reboots)
+    re.compile(r'flatcar-[0-9.]+'): json.dumps({
+        'ignition': {'version': '2.3.0'},
+        'systemd': {
+            'units': [
+                {'name': 'update-engine.service', 'mask': True},
+                {'name': 'locksmithd.service', 'mask': True},
+            ]
+        }
+    }),
+
+    # Disable auto-updates in FCOS (they can cause unexpected reboots)
+    re.compile(r'fcos-[0-9]+'): json.dumps({
+        'ignition': {'version': '3.0.0'},
+        'systemd': {
+            'units': [
+                {'name': 'zincati.service', 'mask': True},
+            ]
+        }
+    }),
+}

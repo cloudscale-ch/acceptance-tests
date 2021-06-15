@@ -1,5 +1,6 @@
 import time
 
+from constants import IMAGE_SPECIFIC_USER_DATA
 from contextlib import suppress
 from datetime import datetime
 from datetime import timedelta
@@ -121,7 +122,7 @@ class Server(CloudscaleResource):
         self.spec.update({'name': name[:63].strip('-')})
 
     def default_spec(self):
-        return {
+        spec = {
             'flavor': 'flex-2',
             'image': self.request.config.option.default_image['slug'],
             'zone': self.request.config.option.zone,
@@ -130,6 +131,18 @@ class Server(CloudscaleResource):
             'use_ipv6': True,
             'ssh_keys': self.request.getfixturevalue('all_public_keys'),
         }
+
+        user_data = self.image_specific_user_data(spec['image'])
+
+        if user_data:
+            spec['user_data'] = user_data
+
+        return spec
+
+    def image_specific_user_data(self, image_slug):
+        for expression, user_data in IMAGE_SPECIFIC_USER_DATA.items():
+            if expression.match(image_slug):
+                return user_data
 
     def default_timeout(self, seconds=SERVER_START_TIMEOUT):
         return datetime.now() + timedelta(seconds=seconds)

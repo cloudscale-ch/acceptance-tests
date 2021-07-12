@@ -14,6 +14,9 @@ These tests are run regularly against our public infrastructure as well as our i
 
 | Category            | Test Name                                                                        | Images   |
 |---------------------|----------------------------------------------------------------------------------|----------|
+| **API**             | [test_duplicate_headers](./test_api.py#L14)                                      | -        |
+|                     | [test_invalid_duplicate_headers](./test_api.py#L33)                              | -        |
+|                     | [test_cors_headers](./test_api.py#L58)                                           | -        |
 | **Custom Image**    | [test_custom_image_with_slug](./test_custom_image.py#L11)                        | custom   |
 |                     | [test_custom_image_with_uuid](./test_custom_image.py#L22)                        | custom   |
 | **Floating IP**     | [test_floating_ip_connectivity](./test_floating_ip.py#L14)                       | default  |

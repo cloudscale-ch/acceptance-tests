@@ -2,7 +2,9 @@ import atexit
 import os
 import re
 import time
+import urllib
 
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from constants import NUMBERS
 from constants import REPEATED_WHITE_SPACE
@@ -470,3 +472,40 @@ def dot_access(path, obj):
             obj = getattr(obj, dot)
 
     return obj
+
+
+def raw_headers(url, method="GET"):
+    """ Returns the headers of the given URL as a dictionary, where each
+    key is a field name (as RFC 2616 calls them, aka header key), and each
+    value ist a list of headers.
+
+    Field names are titleized ('content-language' becomes 'Content-Language').
+    Values are untouched.
+
+    Take the following headers as example:
+
+        vary: Accept-Encoding
+        vary: Accept-Encoding
+        allow: GET, HEAD, OPTIONS
+
+    This results in:
+
+        {
+            'Vary': ['Accept-Encoding', 'Accept-Encoding'],
+            'Allow': ['GET, HEAD, OPTIONS'],
+        }
+
+    """
+
+    # Use urllib.request instead of requests as requests already sanitizes the
+    # response headers by combining duplicate header field names and makes it
+    # impossible to check for invalid or unwanted header configurations.
+    request = urllib.request.Request(url=url, method=method)
+    headers = urllib.request.urlopen(request).getheaders()
+
+    result = defaultdict(list)
+
+    for field_name, field_value in headers:
+        result[field_name].append(field_value)
+
+    return result

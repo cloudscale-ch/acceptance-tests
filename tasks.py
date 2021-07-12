@@ -127,12 +127,16 @@ def implemented_tests_table(c):
     headers = ['Category', 'Test Name', 'Images']
     rows = []
 
+    # Special cases for capitalizing test category titles
+    category_capitalization = {
+        'floating ip': 'Floating IP',
+        'api': 'API',
+    }
+
     for module_path in sorted(Path('.').glob('test_*.py')):
         module = importlib.import_module(module_path.stem)
-        cat = module_path.stem.replace('test_', '').replace('_', ' ').title()
-
-        # There's no good rule for capitalizing this acronym
-        cat = cat.replace('Floating Ip', 'Floating IP')
+        cat = module_path.stem.replace('test_', '').replace('_', ' ')
+        cat = category_capitalization.get(cat, cat.title())
 
         functions = []
 
@@ -155,6 +159,10 @@ def implemented_tests_table(c):
                 image = 'all'
             elif 'common_images' in name:
                 image = 'common'
+            elif 'test_api.py' in file:
+                # API tests are not run against any image, they test basic API
+                # functionality
+                image = '-'
             else:
                 image = 'default'
 

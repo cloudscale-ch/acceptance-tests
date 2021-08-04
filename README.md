@@ -14,6 +14,9 @@ These tests are run regularly against our public infrastructure as well as our i
 
 | Category            | Test Name                                                                        | Images   |
 |---------------------|----------------------------------------------------------------------------------|----------|
+| **API**             | [test_duplicate_headers](./test_api.py#L14)                                      | -        |
+|                     | [test_invalid_duplicate_headers](./test_api.py#L33)                              | -        |
+|                     | [test_cors_headers](./test_api.py#L58)                                           | -        |
 | **Custom Image**    | [test_custom_image_with_slug](./test_custom_image.py#L11)                        | custom   |
 |                     | [test_custom_image_with_uuid](./test_custom_image.py#L22)                        | custom   |
 | **Floating IP**     | [test_floating_ip_connectivity](./test_floating_ip.py#L14)                       | default  |
@@ -24,10 +27,10 @@ These tests are run regularly against our public infrastructure as well as our i
 | **Private Network** | [test_private_ip_address_on_all_images](./test_private_network.py#L14)           | all      |
 |                     | [test_private_network_connectivity_on_all_images](./test_private_network.py#L35) | all      |
 |                     | [test_multiple_private_network_interfaces](./test_private_network.py#L88)        | default  |
-|                     | [test_no_private_network_port_security](./test_private_network.py#L152)          | default  |
-|                     | [test_private_network_without_dhcp](./test_private_network.py#L208)              | default  |
-|                     | [test_private_network_mtu](./test_private_network.py#L251)                       | default  |
-|                     | [test_private_network_only_on_all_images](./test_private_network.py#L309)        | all      |
+|                     | [test_no_private_network_port_security](./test_private_network.py#L145)          | default  |
+|                     | [test_private_network_without_dhcp](./test_private_network.py#L201)              | default  |
+|                     | [test_private_network_mtu](./test_private_network.py#L244)                       | default  |
+|                     | [test_private_network_only_on_all_images](./test_private_network.py#L302)        | all      |
 | **Public Network**  | [test_public_ip_address_on_all_images](./test_public_network.py#L17)             | all      |
 |                     | [test_public_network_connectivity_on_all_images](./test_public_network.py#L46)   | all      |
 |                     | [test_public_network_mtu](./test_public_network.py#L65)                          | default  |

@@ -40,7 +40,7 @@ class API(requests.Session):
     def __init__(self, scope, read_only=False):
         super().__init__()
 
-        self.api_url = API_URL.rstrip('/')
+        self.api_url = API_URL
         self.headers['Authorization'] = f'Bearer {API_TOKEN}'
         self.hooks = {'response': self.on_response}
         self.scope = scope

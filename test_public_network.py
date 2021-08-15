@@ -103,10 +103,10 @@ def test_public_network_port_security(approach, two_servers_in_same_subnet):
     victim, attacker = two_servers_in_same_subnet
 
     # For this test, some extra packages are required
-    victim.assert_run('sudo apt update')
+    victim.assert_run('sudo apt update --allow-releaseinfo-change')
     victim.assert_run('sudo apt install -y curl')
 
-    attacker.assert_run('sudo apt update')
+    attacker.assert_run('sudo apt update --allow-releaseinfo-change')
     attacker.assert_run('sudo apt install -y curl ettercap-text-only tcpdump')
 
     # The attacker starts poisoning the environment

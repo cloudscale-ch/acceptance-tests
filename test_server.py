@@ -247,7 +247,8 @@ def test_no_cpu_steal_on_plus_flavor(create_server, image):
     server = create_server(image=image, flavor='plus-8')
 
     # We need a stress tool to saturate our cores
-    server.assert_run('sudo apt-get update && sudo apt-get install -y stress')
+    server.assert_run('sudo apt update --allow-releaseinfo-change ')
+    server.assert_run('sudo apt install -y stress')
 
     # Run stress in the background, on all cores
     server.assert_run('sudo systemd-run stress --cpu 2')

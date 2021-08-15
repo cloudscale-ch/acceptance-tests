@@ -111,7 +111,8 @@ def test_floating_ip_failover(prober, create_server, server_group,
 
     # Install nginx on the two servers to get unique content for each server
     for s in s1, s2:
-        s.assert_run('sudo apt-get update && sudo apt-get install -y nginx')
+        s.assert_run('sudo apt update --allow-releaseinfo-change')
+        s.assert_run('sudo apt install -y nginx')
 
     # Set unique content for each server
     s1.assert_run('echo s1 | sudo dd of=/var/www/html/index.html')

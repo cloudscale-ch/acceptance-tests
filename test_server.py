@@ -187,6 +187,9 @@ def test_reboot_server(server):
     # Try to reboot through the shell
     server.run('sudo systemctl reboot')
 
+    # Wait for SSH to be unavailable, or we might re-connect prematurely
+    server.wait_for_port(22, 'offline', timeout=10)
+
     # Wait for the server to finish rebooting
     server.connect()
 

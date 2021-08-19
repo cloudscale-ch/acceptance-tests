@@ -1,6 +1,7 @@
 import atexit
 import os
 import re
+import socket
 import time
 import urllib
 
@@ -12,6 +13,7 @@ from constants import RESOURCE_CREATION_CONCURRENCY_LIMIT
 from constants import RESOURCE_NAME_PREFIX
 from constants import RUNTIME_PATH
 from constants import SERVER_START_TIMEOUT
+from contextlib import closing
 from contextlib import suppress
 from datetime import datetime, timedelta
 from errors import Timeout
@@ -509,3 +511,19 @@ def raw_headers(url, method="GET"):
         result[field_name].append(field_value)
 
     return result
+
+
+def is_port_online(host, port, timeout=1.0):
+    """ Returns true if the given TCP port is online. """
+
+    # Support server resources
+    if hasattr(host, 'ip'):
+        host = str(host.ip('public', 4))
+
+    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
+        sock.settimeout(timeout)
+
+        try:
+            return sock.connect_ex((host, port)) == 0
+        except socket.gaierror:
+            return False

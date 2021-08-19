@@ -16,6 +16,7 @@ from testinfra.host import Host
 from util import FaultTolerantParamikoBackend
 from util import generate_server_name
 from util import host_connect_factory
+from util import is_port_online
 from util import matches_attributes
 from util import oneliner
 from util import RESOURCE_NAME_PREFIX
@@ -330,6 +331,33 @@ class Server(CloudscaleResource):
             time.sleep(1)
 
         raise Timeout('Wait for default IPv6 route timed-out')
+
+    @with_trigger('server.wait-for-port')
+    def wait_for_port(self, port, state, timeout=30):
+        """ Waits for the given port to be open. Note that this connects from
+        the current host to the server:
+
+            [Acceptance Tests] → [Server]
+
+        So this is *not* a valid way to connect from a prober to a server
+        in a private network.
+
+        """
+
+        until = datetime.utcnow() + timedelta(seconds=timeout)
+
+        while datetime.utcnow() <= until:
+            is_online = is_port_online(self, port)
+
+            if state == 'online' and is_online:
+                return
+
+            if state == 'offline' and not is_online:
+                return
+
+            time.sleep(0.5)
+
+        raise Timeout(f"Timed out waiting for {self}:{port} to be {state}")
 
     @with_trigger('server.update')
     def update(self, **properties):

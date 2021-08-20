@@ -256,6 +256,13 @@ track_in_event_log('server.wait-for-cloud-init.after', include={
     **RESULT,
 })
 
+track_in_event_log('server.wait-for-port.after', include={
+    **RESOURCE_ID,
+    **RESULT,
+    'port': 'args.port',
+    'state': 'args.state',
+})
+
 track_in_event_log('server.wait-for-non-tentative-ipv6.after', include={
     **RESOURCE_ID,
     **RESULT,

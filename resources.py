@@ -16,6 +16,7 @@ from testinfra.host import Host
 from util import FaultTolerantParamikoBackend
 from util import generate_server_name
 from util import host_connect_factory
+from util import is_port_online
 from util import matches_attributes
 from util import oneliner
 from util import RESOURCE_NAME_PREFIX
@@ -331,6 +332,33 @@ class Server(CloudscaleResource):
 
         raise Timeout('Wait for default IPv6 route timed-out')
 
+    @with_trigger('server.wait-for-port')
+    def wait_for_port(self, port, state, timeout=30):
+        """ Waits for the given port to be open. Note that this connects from
+        the current host to the server:
+
+            [Acceptance Tests] → [Server]
+
+        So this is *not* a valid way to connect from a prober to a server
+        in a private network.
+
+        """
+
+        until = datetime.utcnow() + timedelta(seconds=timeout)
+
+        while datetime.utcnow() <= until:
+            is_online = is_port_online(self, port)
+
+            if state == 'online' and is_online:
+                return
+
+            if state == 'offline' and not is_online:
+                return
+
+            time.sleep(0.5)
+
+        raise Timeout(f"Timed out waiting for {self}:{port} to be {state}")
+
     @with_trigger('server.update')
     def update(self, **properties):
         """ Updates the given properties of the server, using the
@@ -600,12 +628,24 @@ class Server(CloudscaleResource):
         memory available to the user, since some of the total memory is used by
         the kernel.
 
+        Ideally we would read this from dmidecode, where we would get the
+        exact number. However, not every image has dmidecode installed.
+
+        The next best thing is the number of present pages from /proc/zoneinfo,
+        which is the number of pages the kernel can see.
+
+        That is still slightly off from the actual physical memory, but it's
+        close enough.
+
         """
 
-        output = self.output_of(
-            r"sudo dmidecode --type 17 | grep -E '^\s+Size'")
+        # The page size on all of our images is 4KiB
+        page_size = 4096
 
-        return int(output.split(':')[-1].replace('MB', '').strip()) // 1024
+        pages = self.output_of('grep present /proc/zoneinfo').splitlines()
+        pages = (int(p.strip().split(' ', 1)[-1]) for p in pages)
+
+        return round(sum(pages) * page_size / 1024 / 1024 / 1024)
 
     def assigned_cpus(self):
         """ Returns the number of vCPUs assigned to the server. """

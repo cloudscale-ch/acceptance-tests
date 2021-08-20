@@ -628,12 +628,24 @@ class Server(CloudscaleResource):
         memory available to the user, since some of the total memory is used by
         the kernel.
 
+        Ideally we would read this from dmidecode, where we would get the
+        exact number. However, not every image has dmidecode installed.
+
+        The next best thing is the number of present pages from /proc/zoneinfo,
+        which is the number of pages the kernel can see.
+
+        That is still slightly off from the actual physical memory, but it's
+        close enough.
+
         """
 
-        output = self.output_of(
-            r"sudo dmidecode --type 17 | grep -E '^\s+Size'")
+        # The page size on all of our images is 4KiB
+        page_size = 4096
 
-        return int(output.split(':')[-1].replace('MB', '').strip()) // 1024
+        pages = self.output_of('grep present /proc/zoneinfo').splitlines()
+        pages = (int(p.strip().split(' ', 1)[-1]) for p in pages)
+
+        return round(sum(pages) * page_size / 1024 / 1024 / 1024)
 
     def assigned_cpus(self):
         """ Returns the number of vCPUs assigned to the server. """

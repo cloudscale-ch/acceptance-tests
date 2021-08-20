@@ -14,16 +14,16 @@ These tests are run regularly against our public infrastructure as well as our i
 
 | Category            | Test Name                                                                        | Images   |
 |---------------------|----------------------------------------------------------------------------------|----------|
-| **API**             | [test_duplicate_headers](./test_api.py#L14)                                      | -        |
-|                     | [test_invalid_duplicate_headers](./test_api.py#L33)                              | -        |
-|                     | [test_cors_headers](./test_api.py#L58)                                           | -        |
+| **API**             | [test_duplicate_headers](./test_api.py#L15)                                      | -        |
+|                     | [test_invalid_duplicate_headers](./test_api.py#L31)                              | -        |
+|                     | [test_cors_headers](./test_api.py#L53)                                           | -        |
 | **Custom Image**    | [test_custom_image_with_slug](./test_custom_image.py#L11)                        | custom   |
 |                     | [test_custom_image_with_uuid](./test_custom_image.py#L22)                        | custom   |
 | **Floating IP**     | [test_floating_ip_connectivity](./test_floating_ip.py#L14)                       | default  |
 |                     | [test_multiple_floating_ips](./test_floating_ip.py#L32)                          | default  |
 |                     | [test_floating_ip_stability](./test_floating_ip.py#L54)                          | default  |
 |                     | [test_floating_ip_failover](./test_floating_ip.py#L97)                           | default  |
-|                     | [test_floating_network](./test_floating_ip.py#L139)                              | default  |
+|                     | [test_floating_network](./test_floating_ip.py#L140)                              | default  |
 | **Private Network** | [test_private_ip_address_on_all_images](./test_private_network.py#L14)           | all      |
 |                     | [test_private_network_connectivity_on_all_images](./test_private_network.py#L35) | all      |
 |                     | [test_multiple_private_network_interfaces](./test_private_network.py#L88)        | default  |
@@ -43,11 +43,11 @@ These tests are run regularly against our public infrastructure as well as our i
 |                     | [test_hostname](./test_server.py#L130)                                           | default  |
 |                     | [test_rename_server](./test_server.py#L148)                                      | default  |
 |                     | [test_reboot_server](./test_server.py#L172)                                      | default  |
-|                     | [test_stop_and_start_server](./test_server.py#L197)                              | default  |
-|                     | [test_rename_server_group](./test_server.py#L226)                                | default  |
-|                     | [test_no_cpu_steal_on_plus_flavor](./test_server.py#L236)                        | default  |
-|                     | [test_random_number_generator](./test_server.py#L268)                            | default  |
-|                     | [test_metadata_on_all_images](./test_server.py#L283)                             | all      |
+|                     | [test_stop_and_start_server](./test_server.py#L200)                              | default  |
+|                     | [test_rename_server_group](./test_server.py#L229)                                | default  |
+|                     | [test_no_cpu_steal_on_plus_flavor](./test_server.py#L239)                        | default  |
+|                     | [test_random_number_generator](./test_server.py#L272)                            | default  |
+|                     | [test_metadata_on_all_images](./test_server.py#L287)                             | all      |
 | **Volume**          | [test_attach_and_detach_volume_on_all_images](./test_volume.py#L22)              | all      |
 |                     | [test_expand_volume_online_on_all_images](./test_volume.py#L57)                  | all      |
 |                     | [test_expand_filesystem_online_on_common_images](./test_volume.py#L82)           | common   |

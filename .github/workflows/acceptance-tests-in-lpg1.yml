@@ -11,9 +11,9 @@ on:
   #   explicit and change-specific way.
   #
 
-  # Scheduled tests
+  # Scheduled tests (UTC)
   schedule:
-    - cron: '0 0 * * *'
+    - cron: '0 18 * * *'
 
   # Manual execution through the UI by collaborators
   workflow_dispatch:

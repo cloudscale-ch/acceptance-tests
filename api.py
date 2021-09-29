@@ -37,11 +37,17 @@ class API(requests.Session):
 
     """
 
-    def __init__(self, scope, read_only=False):
+    def __init__(self, scope, zone=None, read_only=False):
         super().__init__()
+
+        if zone:
+            agent_suffix = f' ({zone})'
+        else:
+            agent_suffix = ''
 
         self.api_url = API_URL
         self.headers['Authorization'] = f'Bearer {API_TOKEN}'
+        self.headers['User-Agent'] = f'Acceptance Tests{agent_suffix}'
         self.hooks = {'response': self.on_response}
         self.scope = scope
         self.read_only = read_only

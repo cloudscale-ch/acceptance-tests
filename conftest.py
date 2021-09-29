@@ -101,7 +101,8 @@ def pytest_addoption(parser):
 def pytest_sessionstart(session):
     """ Processes the options and caches them for later use. """
 
-    api = API(scope='session', read_only=True)
+    zone = session.config.option.zone
+    api = API(scope='session', zone=zone, read_only=True)
 
     # Request the available images via REST
     images = api.get('/images').json()
@@ -121,9 +122,6 @@ def pytest_sessionstart(session):
     # The default image is matched exactly, because there can only be one
     default = next(i for i in images if i['slug'] == default_image)
 
-    # The image groups are fuzzy matched against common and excluded images
-    z = session.config.option.zone
-
     # Additionally excluded images
     exclude = session.config.option.exclude_image
 
@@ -142,7 +140,7 @@ def pytest_sessionstart(session):
         images = [i for i in images if not is_matching_slug(i, exclude)]
 
         # Include only images present in the given zone
-        images = [i for i in images if is_present_in_zone(i, z)]
+        images = [i for i in images if is_present_in_zone(i, zone)]
 
         # Select common images
         common = [i for i in images if is_matching_slug(i, COMMON)]
@@ -165,7 +163,7 @@ def pytest_sessionstart(session):
     trigger(event='run.start', run_id=global_run_id())
 
     # Cleanup what other tests may have left behind, if they got killed
-    API(scope=None, read_only=False).cleanup(
+    API(scope=None, zone=zone, read_only=False).cleanup(
         limit_to_scope=False, limit_to_process=False)
 
 
@@ -176,7 +174,9 @@ def pytest_sessionfinish(session, exitstatus):
         return
 
     # Cleanup what pytest-xdist workers may have left behind
-    API(scope=None, read_only=False).cleanup(
+    zone = session.config.option.zone
+
+    API(scope=None, zone=zone, read_only=False).cleanup(
         limit_to_scope=False, limit_to_process=False)
 
     # Announce the end of a test-run.
@@ -364,7 +364,8 @@ def session_api(request):
 
     """
 
-    api = API(scope='session', read_only=False)
+    zone = request.session.config.option.zone
+    api = API(scope='session', zone=zone, read_only=False)
 
     yield api
 
@@ -380,7 +381,8 @@ def function_api(request):
 
     """
 
-    api = API(scope='function', read_only=False)
+    zone = request.session.config.option.zone
+    api = API(scope='function', zone=zone, read_only=False)
 
     yield api
 

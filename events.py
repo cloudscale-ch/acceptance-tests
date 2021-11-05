@@ -366,6 +366,13 @@ track_in_event_log('floating-ip.assign.after', include={
     **RESULT,
 })
 
+track_in_event_log('floating-ip.update.after', include={
+    'network': lambda a: str(a.args.self.network),
+    **RESULT,
+    'changes': lambda a: {
+        k: v for k, v in a.args.__dict__.items() if k != 'self'
+    }
+})
 
 # Keep track of Volumes
 track_in_event_log('volume.create.after', include={

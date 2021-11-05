@@ -31,11 +31,13 @@ These tests are run regularly against our public infrastructure as well as our i
 |                     | [test_private_network_without_dhcp](./test_private_network.py#L201)              | default  |
 |                     | [test_private_network_mtu](./test_private_network.py#L244)                       | default  |
 |                     | [test_private_network_only_on_all_images](./test_private_network.py#L302)        | all      |
-| **Public Network**  | [test_public_ip_address_on_all_images](./test_public_network.py#L17)             | all      |
-|                     | [test_public_network_connectivity_on_all_images](./test_public_network.py#L46)   | all      |
-|                     | [test_public_network_mtu](./test_public_network.py#L65)                          | default  |
-|                     | [test_public_network_port_security](./test_public_network.py#L92)                | default  |
-|                     | [test_public_network_ipv4_only_on_all_images](./test_public_network.py#L137)     | all      |
+| **Public Network**  | [test_public_ip_address_on_all_images](./test_public_network.py#L19)             | all      |
+|                     | [test_public_network_connectivity_on_all_images](./test_public_network.py#L48)   | all      |
+|                     | [test_public_network_mtu](./test_public_network.py#L67)                          | default  |
+|                     | [test_public_network_port_security](./test_public_network.py#L94)                | default  |
+|                     | [test_public_network_ipv4_only_on_all_images](./test_public_network.py#L139)     | all      |
+|                     | [test_reverse_ptr_record_of_server](./test_public_network.py#L160)               | default  |
+|                     | [test_reverse_ptr_record_of_floating_ip](./test_public_network.py#L187)          | default  |
 | **Server**          | [test_change_flavor_from_flex_to_flex](./test_server.py#L39)                     | default  |
 |                     | [test_change_flavor_from_flex_to_plus](./test_server.py#L61)                     | default  |
 |                     | [test_change_flavor_from_plus_to_flex](./test_server.py#L84)                     | default  |

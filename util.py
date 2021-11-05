@@ -16,6 +16,9 @@ from constants import SERVER_START_TIMEOUT
 from contextlib import closing
 from contextlib import suppress
 from datetime import datetime, timedelta
+from dns import reversename
+from dns.resolver import NXDOMAIN
+from dns.resolver import Resolver
 from errors import Timeout
 from functools import lru_cache
 from hashlib import blake2b
@@ -527,3 +530,17 @@ def is_port_online(host, port, timeout=1.0):
             return sock.connect_ex((host, port)) == 0
         except socket.gaierror:
             return False
+
+
+def reverse_ptr(address, ns):
+    """ Queries the given nameserver for the PTR record of an IP. """
+
+    resolver = Resolver(configure=False)
+    resolver.nameservers.append(socket.gethostbyname(ns))
+
+    reverse = reversename.from_address(str(address))
+
+    try:
+        return resolver.resolve(reverse, 'PTR').rrset[0].to_text()
+    except NXDOMAIN:
+        return None

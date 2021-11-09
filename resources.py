@@ -472,10 +472,26 @@ class Server(CloudscaleResource):
             error = f'ping failed on {self.name}'
 
         for n in range(1, tries + 1):
+            start = time.monotonic()
             cmd = self.run(f'{ping} {opts} {address}')
 
             if getattr(cmd, check):
                 return cmd.stdout
+
+            # The wait argument in this function is generally used to define an
+            # upper bound a ping check should take by the tests that call it.
+            #
+            # For example: ping(ip, wait=1, tries=10) is meant to ping an IP
+            # 10 times, for a total of up to 10 seconds.
+            #
+            # Ping's "-W" parameter does not work like that however. Depending
+            # on the scenario it won't wait at all. For example, if the
+            # network is unreachable, ping returns immediately.
+            #
+            # To correct for that, we add extra sleep to ensure that a ping
+            # "failure" causes the function to take as long as intended
+            # by the caller.
+            time.sleep(max(wait - (time.monotonic() - start), 0))
 
         raise AssertionError(f"{error}: {cmd.stdout}, {cmd.stderr}")
 

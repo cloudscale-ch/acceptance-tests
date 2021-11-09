@@ -273,7 +273,7 @@ class Server(CloudscaleResource):
             self.wait_for_cloud_init(host, timeout)
 
         # Validate IPv6 if necessary
-        if self.spec['use_ipv6'] and self.spec.get('use_public_network'):
+        if self.spec['use_ipv6'] and self.has_public_interface:
             self.wait_for_non_tentative_ipv6()
             self.wait_for_ipv6_default_route()
 

@@ -544,3 +544,10 @@ def reverse_ptr(address, ns):
         return str(resolver.resolve(reverse, 'PTR')[0])
     except NXDOMAIN:
         return None
+
+
+def nameservers(zone):
+    """ Returns the nameservers associated with a given zone. """
+
+    resolver = Resolver(configure=True)
+    return [str(s) for s in resolver.resolve(zone, 'NS')]

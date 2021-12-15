@@ -11,6 +11,7 @@ import pytest
 import secrets
 
 from constants import PUBLIC_PING_TARGETS
+from util import nameservers
 from util import oneliner
 from util import retry_for
 from util import reverse_ptr
@@ -172,12 +173,9 @@ def test_reverse_ptr_record_of_server(create_server, image):
     ipv6 = server.ip('public', 6)
 
     def assert_ptr_propagated():
-        assert reverse_ptr(ipv4, 'ns1.cloudscale.ch') == f'{server.name}.'
-        assert reverse_ptr(ipv4, 'ns2.cloudscale.ch') == f'{server.name}.'
-        assert reverse_ptr(ipv4, 'ns3.cloudscale.ch') == f'{server.name}.'
-        assert reverse_ptr(ipv6, 'ns1.cloudscale.ch') == f'{server.name}.'
-        assert reverse_ptr(ipv6, 'ns2.cloudscale.ch') == f'{server.name}.'
-        assert reverse_ptr(ipv6, 'ns3.cloudscale.ch') == f'{server.name}.'
+        for nameserver in nameservers('cloudscale.ch'):
+            assert reverse_ptr(ipv4, nameserver) == f'{server.name}.'
+            assert reverse_ptr(ipv6, nameserver) == f'{server.name}.'
 
     retry_for(seconds=60).or_fail(
         assert_ptr_propagated,
@@ -195,9 +193,8 @@ def test_reverse_ptr_record_of_floating_ip(
         ip_version=ip_version, region=region, reverse_ptr=ptr)
 
     def assert_ptr_propagated():
-        assert reverse_ptr(fip, 'ns1.cloudscale.ch') == f'{ptr}.'
-        assert reverse_ptr(fip, 'ns2.cloudscale.ch') == f'{ptr}.'
-        assert reverse_ptr(fip, 'ns3.cloudscale.ch') == f'{ptr}.'
+        for nameserver in nameservers('cloudscale.ch'):
+            assert reverse_ptr(fip, nameserver) == f'{ptr}.'
 
     retry_for(seconds=60).or_fail(
         assert_ptr_propagated,

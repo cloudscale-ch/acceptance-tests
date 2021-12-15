@@ -541,6 +541,6 @@ def reverse_ptr(address, ns):
     reverse = reversename.from_address(str(address))
 
     try:
-        return resolver.resolve(reverse, 'PTR').rrset[0].to_text()
+        return str(resolver.resolve(reverse, 'PTR')[0])
     except NXDOMAIN:
         return None

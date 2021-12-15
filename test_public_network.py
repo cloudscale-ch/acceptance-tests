@@ -158,7 +158,7 @@ def test_public_network_ipv4_only_on_all_images(prober, create_server, image):
     assert len(v6) == 0
 
 
-def test_reverse_ptr_record_of_server(create_server, image):
+def test_reverse_ptr_record_of_server(create_server):
     """ The reverse PTR record of a server is set to the name of the server,
     *if* the server name is a FQDN.
 

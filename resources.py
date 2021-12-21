@@ -713,7 +713,7 @@ class Server(CloudscaleResource):
 class FloatingIP(CloudscaleResource):
 
     def __init__(self, request, api, ip_version, region, prefix_length=None,
-                 server=None):
+                 server=None, reverse_ptr=None):
         super().__init__(request, api)
 
         self.spec = {
@@ -727,6 +727,9 @@ class FloatingIP(CloudscaleResource):
         if server:
             self.spec['server'] = server
 
+        if reverse_ptr:
+            self.spec['reverse_ptr'] = reverse_ptr
+
     def __str__(self):
         return str(self.ip)
 
@@ -738,6 +741,15 @@ class FloatingIP(CloudscaleResource):
     def assign(self, server):
         self.api.patch(self.href, json={'server': server.uuid})
         self.refresh()
+
+    @with_trigger('floating-ip.update')
+    def update(self, **properties):
+        """ Updates the given properties of the Floating IP, using the
+        /v1/floating-ip/<network-id> PATCH call.
+
+        """
+
+        self.api.patch(self.href, json=properties)
 
     @property
     def ip(self):

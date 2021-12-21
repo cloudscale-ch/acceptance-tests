@@ -1,3 +1,4 @@
+dnspython
 filelock
 flake8
 invoke

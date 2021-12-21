@@ -8,10 +8,13 @@ Our servers can communicate with the outside world through IPv4 and IPv6.
 """
 
 import pytest
+import secrets
 
 from constants import PUBLIC_PING_TARGETS
+from util import nameservers
 from util import oneliner
 from util import retry_for
+from util import reverse_ptr
 
 
 @pytest.mark.parametrize('ip_version', [4, 6], ids=['IPv4', 'IPv6'])
@@ -153,3 +156,54 @@ def test_public_network_ipv4_only_on_all_images(prober, create_server, image):
     # Verify there's exactly one IPv4 and no IPv6 address
     assert len(v4) == 1
     assert len(v6) == 0
+
+
+def test_reverse_ptr_record_of_server(create_server):
+    """ The reverse PTR record of a server is set to the name of the server,
+    *if* the server name is a FQDN.
+
+    """
+
+    # Create the server with an FQDN
+    secret = secrets.token_hex(4)
+    server = create_server(name=f'at-{secret}.example.org', auto_name=False)
+
+    # Wait for the reverse PTR records to propagate
+    ipv4 = server.ip('public', 4)
+    ipv6 = server.ip('public', 6)
+
+    def assert_ptr_propagated():
+        for nameserver in nameservers('cloudscale.ch'):
+            assert reverse_ptr(ipv4, nameserver) == f'{server.name}.'
+            assert reverse_ptr(ipv6, nameserver) == f'{server.name}.'
+
+    retry_for(seconds=60).or_fail(
+        assert_ptr_propagated,
+        msg=f'Unexpected reverse PTR {server.name} after 60 seconds')
+
+
+@pytest.mark.parametrize('ip_version', [4, 6], ids=['IPv4', 'IPv6'])
+def test_reverse_ptr_record_of_floating_ip(
+        create_floating_ip, region, ip_version):
+    """ The reverse PTR record of Floating IPs can be set freely. """
+
+    # Create a Floating IP and wait for propagation
+    ptr = f"at-{secrets.token_hex(4)}.example.org"
+    fip = create_floating_ip(
+        ip_version=ip_version, region=region, reverse_ptr=ptr)
+
+    def assert_ptr_propagated():
+        for nameserver in nameservers('cloudscale.ch'):
+            assert reverse_ptr(fip, nameserver) == f'{ptr}.'
+
+    retry_for(seconds=60).or_fail(
+        assert_ptr_propagated,
+        msg=f'Unexpected reverse PTR {ptr} after 60 seconds')
+
+    # Update the Floating IP with a non-FQDN value and wait for propagation
+    ptr = f"at-{secrets.token_hex(4)}"
+    fip.update(reverse_ptr=ptr)
+
+    retry_for(seconds=60).or_fail(
+        assert_ptr_propagated,
+        msg=f'Unexpected reverse PTR {ptr} after 60 seconds')

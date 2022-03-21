@@ -128,8 +128,9 @@ def test_public_network_port_security(approach, two_servers_in_same_subnet):
     victim.assert_run(f'curl {file} -4 --limit-rate 1M --max-time 15 -O')
 
     # No TCP packets on port 443 should have been intercepted
-    intercepted_packets = int(attacker.output_of(oneliner("""
-        sudo tcpdump -r pcap tcp port 443
+    intercepted_packets = int(attacker.output_of(oneliner(f"""
+        sudo tcpdump -n -r pcap
+        "tcp port 443 and (host {v4} or host {v6})"
         | grep -v truncated
         | wc -l
     """)))

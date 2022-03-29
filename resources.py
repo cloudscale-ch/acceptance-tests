@@ -567,13 +567,7 @@ class Server(CloudscaleResource):
 
         return self.host.interface(self.nth_interface_name(1))
 
-    def ip(self, iface_type, ip_version, fail_if_missing=True):
-        """ Get IP address from the given interface type and version.
-
-        If `fail_if_missing` is set to False, None may be returned.
-
-        """
-
+    def ip_address_config(self, iface_type, ip_version):
         for interface in self.interfaces:
             for address in interface['addresses']:
                 if interface['type'] != iface_type:
@@ -582,10 +576,40 @@ class Server(CloudscaleResource):
                 if address['version'] != ip_version:
                     continue
 
-                return ip_address(address['address'])
+                return address
 
-        if fail_if_missing:
+        # No address of this type found
+        return None
+
+    def ip(self, iface_type, ip_version, fail_if_missing=True):
+        """ Get IP address from the given interface type and version.
+
+        If `fail_if_missing` is set to False, None may be returned.
+
+        """
+        config = self.ip_address_config(iface_type, ip_version)
+
+        if config:
+            return ip_address(config['address'])
+        elif fail_if_missing:
             raise AssertionError(f"No IP address: {iface_type}/{ip_version}")
+        else:
+            return None
+
+    def gateway(self, iface_type, ip_version, fail_if_missing=True):
+        """ Get the gateway IP addr from the given interface type and version.
+
+        If `fail_if_missing` is set to False, None may be returned.
+
+        """
+        config = self.ip_address_config(iface_type, ip_version)
+
+        if config and config['gateway']:
+            return ip_address(config['gateway'])
+        elif fail_if_missing:
+            raise AssertionError(f"No gateway: {iface_type}/{ip_version}")
+        else:
+            return None
 
     def interface_name(self, floating_ip):
         """ Generates a unique interface name for the given Floating IP.

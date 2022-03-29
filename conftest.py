@@ -434,13 +434,16 @@ def server_with_private_net(create_server, image):
 
 
 @pytest.fixture(scope='function')
-def two_servers_in_same_subnet(create_server, image):
+def two_servers_in_same_subnet(create_server, prober, image):
     """ Tries to find two servers in the same subnet.
 
     This is not straight-forward as we have no way of requesting two servers
     to be in the same subnet. However, we have a limited number of subnets
     and can therefore most likely find a solution within a few tries.
 
+    Connections to the servers are done via a jumphost to avoid any
+    interference with the public network for sensitive networking
+    tests.
     """
 
     def network_id(server):
@@ -456,11 +459,17 @@ def two_servers_in_same_subnet(create_server, image):
 
     for _ in range(4):
 
+        server_args = {
+            'image': image['slug'],
+            'use_public_network': True,
+            'use_private_network': True,
+            'jump_host': prober,
+        }
         servers = in_parallel(create_server, instances=(
-            {'name': 's1', 'image': image['slug']},
-            {'name': 's2', 'image': image['slug']},
-            {'name': 's3', 'image': image['slug']},
-            {'name': 's4', 'image': image['slug']},
+            {'name': 's1', **server_args},
+            {'name': 's2', **server_args},
+            {'name': 's3', **server_args},
+            {'name': 's4', **server_args},
         ))
 
         a, b = two_in_same_subnet(servers)

@@ -518,11 +518,11 @@ class Server(CloudscaleResource):
         return self.host.run(command)
 
     @with_trigger('server.assert-run')
-    def assert_run(self, command):
+    def assert_run(self, command, valid_exit_codes=(0,)):
         """ Alias for self.host.run_expect. Unlike `run`, this function raises
         an Assertion if the command failed.
         """
-        return self.host.run_expect((0,), command)
+        return self.host.run_expect(valid_exit_codes, command)
 
     @property
     def has_public_interface(self):

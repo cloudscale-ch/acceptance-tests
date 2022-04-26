@@ -585,14 +585,18 @@ def private_network(create_private_network):
     return create_private_network()
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope='session', params=['raw', 'qcow2'])
 def custom_alpine_image(request, session_api, zone):
     """ A session scoped custom Alpine image. """
 
-    url = 'https://at-images.objects.lpg.cloudscale.ch/alpine'
+    fmt = request.param
+    img = 'https://at-images.objects.lpg.cloudscale.ch/alpine'
+    url = f'{img}.{fmt}'
 
-    md5 = requests.get(url + '.md5').text
-    sha256 = requests.get(url + '.sha256').text
+    # All images are expanded to raw and then hashed, so the hash is not
+    # per-format, but always refers to raw.
+    md5 = requests.get(f'{img}.md5').text
+    sha256 = requests.get(f'{img}.sha256').text
 
     image = CustomImage(
         request=request,
@@ -601,7 +605,7 @@ def custom_alpine_image(request, session_api, zone):
         name='Alpine',
         slug=f'custom-{secrets.token_hex(8)}',
         url=url,
-        source_format='raw',
+        source_format=fmt,
         user_data_handling='extend-cloud-config',
     )
 

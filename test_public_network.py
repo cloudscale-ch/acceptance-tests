@@ -11,6 +11,7 @@ import pytest
 import secrets
 
 from constants import PUBLIC_PING_TARGETS
+from ipaddress import ip_interface
 from util import nameservers
 from util import oneliner
 from util import retry_for
@@ -92,14 +93,16 @@ def test_public_network_mtu(server):
     server.ping(ping_target, size=1473, fragment=False, expect_failure=True)
 
 
-@pytest.mark.parametrize('approach', [
-    {'version': 4, 'mitm': 'ARP'},
-    {'version': 6, 'mitm': 'NDP'},
-], ids=['IPv4', 'IPv6'])
-def test_public_network_port_security(approach, two_servers_in_same_subnet):
+@pytest.mark.parametrize('ip_version', [4, 6], ids=['IPv4', 'IPv6'])
+def test_public_network_port_security(ip_version, two_servers_in_same_subnet):
     """ Virtual machines should not be able to intercept each others traffic
     through ARP spoofing or NDP poisoning attacks.
 
+    Attention: Due to it's nature this test can cause havoc on the network in
+    the absence of effective port security to prevent ARP and ND spoofing!
+
+    This is notoriously unreliable in failing in the absence of port security
+    rules for IPv6. It often succeeds even if it should fail.
     """
 
     # We need two servers in the same subnet
@@ -112,25 +115,62 @@ def test_public_network_port_security(approach, two_servers_in_same_subnet):
     attacker.assert_run('sudo apt update --allow-releaseinfo-change')
     attacker.assert_run('sudo apt install -y curl ettercap-text-only tcpdump')
 
+    ipv4 = victim.ip('public', 4)
+    ipv6 = victim.ip('public', 6)
+
+    # Get the first IPv6 link local address
+    ll_addr_v6 = ip_interface(victim.output_of(
+        "ip -6 -brief addr show scope link | awk '{ print $3 }' | head -1"
+    )).ip
+    ipv4_gateway = victim.gateway('public', 4)
+    ipv6_gateway = victim.gateway('public', 6)
+
+    # Use ARP spoofing for IPv4, NDP spoofing for IPv6
+    if ip_version == 4:
+        victim_ip = ipv4
+        curl_params='-4'
+        mtm_method = 'arp'
+    else:
+        victim_ip = ipv6
+        curl_params='-6'
+        mtm_method = 'ndp'
+
+    # This needs to match on IPv4 and IPv6 otherwise // means all addresses
+    # and will try to intercept traffic between all hosts on the network
+    # Additionally this has to match all addresses used: the IPv6 link-local
+    # address and all IPv4 gateway addresses
+    ettercap_params = oneliner(f'''
+        -M {mtm_method}:remote
+        '/{ipv4}/{ipv6};{ll_addr_v6}/'
+        '/{ipv4_gateway};{ipv4_gateway+1};{ipv4_gateway+2}/{ipv6_gateway}/'
+    ''')
+
     # The attacker starts poisoning the environment
-    mitm = approach['mitm']
-
-    v4 = victim.ip('public', 4)
-    v6 = victim.ip('public', 6)
-
-    attacker.assert_run(f'sudo ettercap -D -w pcap -M {mitm} /{v4}/{v6}/')
+    attacker.assert_run(oneliner(f"""
+        sudo systemd-run --same-dir --unit ettercap
+        ettercap -T -w pcap {ettercap_params}
+    """))
 
     # The victim initiates a slow download
     region = victim.zone['slug'][:-1]
     file = f"https://{region}-fixtures.objects.{region}.cloudscale.ch/10mib"
 
     # Download with 1MiB per second, abort if it takes longer than 15 seconds
-    victim.assert_run(f'curl {file} -4 --limit-rate 1M --max-time 15 -O')
+    # Don't fail if curl exits with a timeout (exit code 28) or if it fails
+    # to connect (exit code 7)
+    victim.assert_run(
+        f'curl {file} {curl_params} --limit-rate 1M --max-time 15 -O',
+        valid_exit_codes=(0, 7, 28),
+    )
 
-    # No TCP packets on port 443 should have been intercepted
-    intercepted_packets = int(attacker.output_of(oneliner("""
-        sudo tcpdump -r pcap tcp port 443
-        | grep -v truncated
+    # Stop poisoning the network and restore original ARP/ND entries
+    attacker.assert_run('sudo systemctl stop ettercap')
+
+    # No TCP packets from or to the victim on port 443 should have been
+    # intercepted
+    intercepted_packets = int(attacker.output_of(oneliner(f"""
+        sudo tcpdump -n -r pcap
+        "tcp port 443 and host {victim_ip}"
         | wc -l
     """)))
 

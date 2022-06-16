@@ -295,7 +295,7 @@ def open_jump_host_channel(private_ip, jump_host, deadline):
     while datetime.now() < deadline:
         time.sleep(1)
 
-        with suppress(ChannelException, EOFError):
+        with suppress(ChannelException, EOFError, SSHException):
             return transport.open_channel(
                 'direct-tcpip', (str(private_ip), 22), ('', 0))
 

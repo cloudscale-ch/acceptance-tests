@@ -11,9 +11,6 @@ API Docs: https://www.cloudscale.ch/en/api/v1
 
 """
 
-import os
-import pytest
-
 from util import extract_number
 from util import oneliner
 
@@ -29,11 +26,6 @@ PLUS_8_CPUS = 2
 
 PLUS_12_MEMORY = 12
 PLUS_12_CPUS = 3
-
-skip_if_no_plus_flavors_available = pytest.mark.skipif(
-    os.environ.get('TESTS_SKIP_PLUS_FLAVOR', False),
-    reason="Plus flavors not available"
-)
 
 
 def test_change_flavor_from_flex_to_flex(create_server):
@@ -58,7 +50,6 @@ def test_change_flavor_from_flex_to_flex(create_server):
     assert server.assigned_cpus() == FLEX_4_CPUS
 
 
-@skip_if_no_plus_flavors_available
 def test_change_flavor_from_flex_to_plus(create_server):
     """ It is possible to change from a flex to a plus flavor. """
 
@@ -81,7 +72,6 @@ def test_change_flavor_from_flex_to_plus(create_server):
     assert server.assigned_cpus() == PLUS_8_CPUS
 
 
-@skip_if_no_plus_flavors_available
 def test_change_flavor_from_plus_to_flex(create_server):
     """ It is possible to change from a plus to a flex flavor. """
 
@@ -104,7 +94,6 @@ def test_change_flavor_from_plus_to_flex(create_server):
     assert server.assigned_cpus() == FLEX_2_CPUS
 
 
-@skip_if_no_plus_flavors_available
 def test_change_flavor_from_plus_to_plus(create_server):
     """ It is possible to change from one plus flavor to another. """
 
@@ -236,7 +225,6 @@ def test_rename_server_group(server_group):
     assert server_group.name == 'frontend-servers'
 
 
-@skip_if_no_plus_flavors_available
 def test_no_cpu_steal_on_plus_flavor(create_server, image):
     """ Plus flavor servers have dedicated CPU cores, which means other tenants
     cannot cause CPU steal as they might with shared CPU cores.

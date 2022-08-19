@@ -53,7 +53,7 @@ class CloudscaleResource:
         For example:
 
             new_focal_server = Server.factory(image='ubuntu-20.04')
-            server = new_focal_server(flavor='flex-2')
+            server = new_focal_server(flavor='flex-4-1')
 
         """
         def create_resource_factory(**parameters):
@@ -124,7 +124,7 @@ class Server(CloudscaleResource):
 
     def default_spec(self):
         spec = {
-            'flavor': 'flex-2',
+            'flavor': 'flex-4-1',
             'image': self.request.config.option.default_image['slug'],
             'zone': self.request.config.option.zone,
             'volume_size_gb': 10,

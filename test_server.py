@@ -11,120 +11,96 @@ API Docs: https://www.cloudscale.ch/en/api/v1
 
 """
 
-import os
-import pytest
-
 from util import extract_number
 from util import oneliner
-
-# Expected flavor sizes
-FLEX_2_MEMORY = 2
-FLEX_2_CPUS = 1
-
-FLEX_4_MEMORY = 4
-FLEX_4_CPUS = 2
-
-PLUS_8_MEMORY = 8
-PLUS_8_CPUS = 2
-
-PLUS_12_MEMORY = 12
-PLUS_12_CPUS = 3
-
-skip_if_no_plus_flavors_available = pytest.mark.skipif(
-    os.environ.get('TESTS_SKIP_PLUS_FLAVOR', False),
-    reason="Plus flavors not available"
-)
 
 
 def test_change_flavor_from_flex_to_flex(create_server):
     """ It is possible to change from one flex flavor to another. """
 
-    # Start a server with the flex-2 flavor
-    server = create_server(flavor='flex-2')
+    # Start a server with the flex-4-1 flavor
+    server = create_server(flavor='flex-4-1')
 
-    assert server.assigned_memory() == FLEX_2_MEMORY
-    assert server.assigned_cpus() == FLEX_2_CPUS
+    assert server.assigned_memory() == 4
+    assert server.assigned_cpus() == 1
 
     # To change the flavor we need to stop the server first
     server.stop()
 
-    # Change the flavor to flex-4
-    server.update(flavor='flex-4')
+    # Change the flavor to flex-8-2
+    server.update(flavor='flex-8-2')
 
     # Make sure the server has been scaled
     server.start()
 
-    assert server.assigned_memory() == FLEX_4_MEMORY
-    assert server.assigned_cpus() == FLEX_4_CPUS
+    assert server.assigned_memory() == 8
+    assert server.assigned_cpus() == 2
 
 
-@skip_if_no_plus_flavors_available
 def test_change_flavor_from_flex_to_plus(create_server):
     """ It is possible to change from a flex to a plus flavor. """
 
-    # Start a server with the flex-2 flavor
-    server = create_server(flavor='flex-2')
+    # Start a server with the flex-4-1 flavor
+    server = create_server(flavor='flex-4-1')
 
-    assert server.assigned_memory() == FLEX_2_MEMORY
-    assert server.assigned_cpus() == FLEX_2_CPUS
+    assert server.assigned_memory() == 4
+    assert server.assigned_cpus() == 1
 
     # To change the flavor we need to stop the server first
     server.stop()
 
-    # Change the flavor to plus-8
-    server.update(flavor='plus-8')
+    # Change the flavor to plus-8-2
+    server.update(flavor='plus-8-2')
 
     # Make sure the server has been scaled
     server.start()
 
-    assert server.assigned_memory() == PLUS_8_MEMORY
-    assert server.assigned_cpus() == PLUS_8_CPUS
+    assert server.assigned_memory() == 8
+    assert server.assigned_cpus() == 2
 
 
-@skip_if_no_plus_flavors_available
 def test_change_flavor_from_plus_to_flex(create_server):
     """ It is possible to change from a plus to a flex flavor. """
 
-    # Start a server with the plus-8 flavor
-    server = create_server(flavor='plus-8')
+    # Start a server with the plus-8-2 flavor
+    server = create_server(flavor='plus-8-2')
 
-    assert server.assigned_memory() == PLUS_8_MEMORY
-    assert server.assigned_cpus() == PLUS_8_CPUS
+    assert server.assigned_memory() == 8
+    assert server.assigned_cpus() == 2
 
     # To change the flavor we need to stop the server first
     server.stop()
 
-    # Change the flavor to flex-2
-    server.update(flavor='flex-2')
+    # Change the flavor to flex-4-1
+    server.update(flavor='flex-4-1')
 
     # Make sure the server has been scaled
     server.start()
 
-    assert server.assigned_memory() == FLEX_2_MEMORY
-    assert server.assigned_cpus() == FLEX_2_CPUS
+    assert server.assigned_memory() == 4
+    assert server.assigned_cpus() == 1
 
 
-@skip_if_no_plus_flavors_available
 def test_change_flavor_from_plus_to_plus(create_server):
     """ It is possible to change from one plus flavor to another. """
 
-    # Start a server with the plus-8 flavor
-    server = create_server(flavor='plus-8')
+    # Start a server with the plus-8-2 flavor
+    server = create_server(flavor='plus-8-2')
 
-    assert server.assigned_memory() == PLUS_8_MEMORY
-    assert server.assigned_cpus() == PLUS_8_CPUS
+    assert server.assigned_memory() == 8
+    assert server.assigned_cpus() == 2
 
     # To change the flavor we need to stop the server first
     server.stop()
 
-    # Change the flavor to plus-12
-    server.update(flavor='plus-12')
+    # Change the flavor to plus-12-3
+    server.update(flavor='plus-12-3')
 
     # Make sure the server has been scaled
     server.start()
 
-    assert server.assigned_memory() == PLUS_12_MEMORY
-    assert server.assigned_cpus() == PLUS_12_CPUS
+    assert server.assigned_memory() == 12
+    assert server.assigned_cpus() == 3
 
 
 def test_hostname(create_server):
@@ -236,7 +212,6 @@ def test_rename_server_group(server_group):
     assert server_group.name == 'frontend-servers'
 
 
-@skip_if_no_plus_flavors_available
 def test_no_cpu_steal_on_plus_flavor(create_server, image):
     """ Plus flavor servers have dedicated CPU cores, which means other tenants
     cannot cause CPU steal as they might with shared CPU cores.
@@ -246,8 +221,8 @@ def test_no_cpu_steal_on_plus_flavor(create_server, image):
 
     """
 
-    # Create a Plus-8 instance
-    server = create_server(image=image, flavor='plus-8')
+    # Create a Plus-8-2 instance
+    server = create_server(image=image, flavor='plus-8-2')
 
     # We need a stress tool to saturate our cores
     server.assert_run('sudo apt update --allow-releaseinfo-change ')

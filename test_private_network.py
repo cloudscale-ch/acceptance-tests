@@ -319,3 +319,37 @@ def test_private_network_only_on_all_images(prober, create_server, image):
     # Make sure that no public interface is configured
     public_addresses = server.configured_ip_addresses(is_global=True)
     assert len(public_addresses) == 0
+
+
+def test_private_network_attach_later(server, private_network):
+    """ Private network ports can be attached to an already running server.
+
+    """
+
+    subnet = private_network.add_subnet('10.0.0.0/24')
+
+    # Attach the server to the private network
+    server.update(
+        interfaces=[{"network": "public"},
+                    {"network": private_network.info["uuid"]}]
+    )
+
+    # Assert the private network interface now exists
+    assert server.private_interface.exists
+
+    def assert_private_network_is_configured():
+        # Check if the private interface is configured with exactly one
+        # address from the subnet
+        private_addresses = server.configured_ip_addresses(
+            is_private=True,
+            is_loopback=False,
+            is_link_local=False,
+            version=4,
+        )
+        assert len(private_addresses) == 1
+        assert private_addresses[0] in subnet
+
+    retry_for(seconds=15).or_fail(
+        assert_private_network_is_configured,
+        msg='Failed to configure private network.',
+    )

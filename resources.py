@@ -129,7 +129,7 @@ class Server(CloudscaleResource):
             'zone': self.request.config.option.zone,
             'volume_size_gb': 10,
             'use_public_network': True,
-            'use_ipv6': True,
+            'use_ipv6': not self.request.config.option.no_ipv6,
             'ssh_keys': self.request.getfixturevalue('all_public_keys'),
         }
 

@@ -97,6 +97,13 @@ def pytest_addoption(parser):
         help="Username used for custom images"
     )
 
+    parser.addoption(
+        '--no-ipv6',
+        action='store_true',
+        default=False,
+        help="Do not use IPv6 for VMs (tests that require it will fail)"
+    )
+
 
 def pytest_sessionstart(session):
     """ Processes the options and caches them for later use. """

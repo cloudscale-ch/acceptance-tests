@@ -16,6 +16,7 @@ from util import nameservers
 from util import oneliner
 from util import retry_for
 from util import reverse_ptr
+from util import is_public
 
 
 @pytest.mark.parametrize('ip_version', [4, 6], ids=['IPv4', 'IPv6'])
@@ -33,7 +34,7 @@ def test_public_ip_address_on_all_images(create_server, ip_version, image):
 
         # Get all configured global IP addresses of the given version
         addrs = server.configured_ip_addresses()
-        addrs = [a for a in addrs if a.is_global and a.version == ip_version]
+        addrs = [a for a in addrs if is_public(a) and a.version == ip_version]
 
         # Assert a single match
         assert len(addrs) == 1
@@ -190,8 +191,8 @@ def test_public_network_ipv4_only_on_all_images(prober, create_server, image):
     prober.ping(server.ip('public', 4))
 
     # Count the public addresses per IP version
-    v4 = server.configured_ip_addresses(is_global=True, version=4)
-    v6 = server.configured_ip_addresses(is_global=True, version=6)
+    v4 = server.configured_ip_addresses(is_public=True, version=4)
+    v6 = server.configured_ip_addresses(is_public=True, version=6)
 
     # Verify there's exactly one IPv4 and no IPv6 address
     assert len(v4) == 1

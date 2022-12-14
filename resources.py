@@ -17,6 +17,7 @@ from util import FaultTolerantParamikoBackend
 from util import generate_server_name
 from util import host_connect_factory
 from util import is_port_online
+from util import is_public
 from util import matches_attributes
 from util import oneliner
 from util import RESOURCE_NAME_PREFIX
@@ -644,12 +645,21 @@ class Server(CloudscaleResource):
 
         matches = []
 
+        if 'is_public' in attributes:
+            if attributes.pop('is_public'):
+                include_ip = is_public
+            else:
+                include_ip = lambda ip: not is_public(ip)  # noqa
+        else:
+            include_ip = lambda ip: True  # noqa
+
         for interface in interfaces:
             for address in interface.addresses:
                 address = ip_address(address)
 
                 if matches_attributes(address, **attributes):
-                    matches.append(address)
+                    if include_ip(address):
+                        matches.append(address)
 
         return matches
 

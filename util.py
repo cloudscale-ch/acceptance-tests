@@ -22,6 +22,8 @@ from dns.resolver import Resolver
 from errors import Timeout
 from functools import lru_cache
 from hashlib import blake2b
+from ipaddress import ip_address
+from ipaddress import ip_network
 from paramiko import SSHClient, AutoAddPolicy
 from paramiko.ssh_exception import ChannelException
 from paramiko.ssh_exception import NoValidConnectionsError
@@ -551,3 +553,22 @@ def nameservers(zone):
 
     resolver = Resolver(configure=True)
     return [str(s) for s in resolver.resolve(zone, 'NS')]
+
+
+def is_public(address):
+    """ Returns True if we consider the given address to be public.
+
+    This is not an equivalent to the `is_global` flag used by ipaddress. Here
+    we consider IPs from the CGNAT space (RFC6598) to be public, since we
+    use that address range as a replacement for public IPs internally.
+
+    For IPv6 this function behaves exactly like `is_global`.
+
+    """
+
+    address = ip_address(address)
+
+    if address.version == 6:
+        return address.is_global
+
+    return address.is_global or address in ip_network('100.64.0.0/10')

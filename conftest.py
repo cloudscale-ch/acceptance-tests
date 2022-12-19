@@ -595,38 +595,66 @@ def private_network(create_private_network):
 
 
 @pytest.fixture(scope='session', params=['raw', 'qcow2'])
-def custom_alpine_image(request, session_api, zone):
+def custom_alpine_image(request, upload_custom_image):
     """ A session scoped custom Alpine image. """
 
-    fmt = request.param
-    img = 'https://at-images.objects.lpg.cloudscale.ch/alpine'
-    url = f'{img}.{fmt}'
-
-    # All images are expanded to raw and then hashed, so the hash is not
-    # per-format, but always refers to raw.
-    md5 = requests.get(f'{img}.md5').text
-    sha256 = requests.get(f'{img}.sha256').text
-
-    image = CustomImage(
-        request=request,
-        api=session_api,
-        zones=(zone, ),
-        name='Alpine',
-        slug=f'custom-{secrets.token_hex(8)}',
-        url=url,
-        source_format=fmt,
-        user_data_handling='extend-cloud-config',
+    return upload_custom_image(
+        img_name='Alpine',
+        img='https://at-images.objects.lpg.cloudscale.ch/alpine',
+        firmware_type='bios',
+        fmt=request.param
     )
 
-    image.create()
 
-    if image.progress['status'] == 'failed':
-        raise RuntimeError(f"Failed to import {url}")
+@pytest.fixture(scope='session', params=['raw', 'qcow2'])
+def custom_ubuntu_uefi_image(request, upload_custom_image):
+    """ A session scoped custom Ubuntu UEFI image. """
 
-    if image.checksums['md5'] != md5:
-        raise RuntimeError(f"Wrong MD5 for {url}: {md5}")
+    return upload_custom_image(
+        img_name='Ubuntu UEFI',
+        img='https://at-images.objects.lpg.cloudscale.ch/ubuntu',
+        firmware_type='uefi',
+        fmt=request.param
+    )
 
-    if image.checksums['sha256'] != sha256:
-        raise RuntimeError(f"Wrong SHA-256 for {url}: {sha256}")
 
-    yield image
+@pytest.fixture(scope='session')
+def upload_custom_image(request, session_api, zone):
+    """ Factory to upload a custom image and receive a reference to it. """
+
+    def factory(img_name, img, firmware_type, fmt):
+
+        fmt = fmt
+        url = f'{img}.{fmt}'
+
+        # All images are expanded to raw and then hashed, so the hash is not
+        # per-format, but always refers to raw.
+        md5 = requests.get(f'{img}.md5').text
+        sha256 = requests.get(f'{img}.sha256').text
+
+        image = CustomImage(
+            request=request,
+            api=session_api,
+            zones=(zone, ),
+            name=img_name,
+            slug=f'custom-{secrets.token_hex(8)}',
+            url=url,
+            source_format=fmt,
+            user_data_handling='extend-cloud-config',
+            firmware_type=firmware_type
+        )
+
+        image.create()
+
+        if image.progress['status'] == 'failed':
+            raise RuntimeError(f"Failed to import {url}")
+
+        if image.checksums['md5'] != md5:
+            raise RuntimeError(f"Wrong MD5 for {url}: {md5}")
+
+        if image.checksums['sha256'] != sha256:
+            raise RuntimeError(f"Wrong SHA-256 for {url}: {sha256}")
+
+        return image
+
+    return factory

@@ -317,7 +317,7 @@ def test_private_network_only_on_all_images(prober, create_server, image):
     prober.ping(server.ip('private', 4))
 
     # Make sure that no public interface is configured
-    public_addresses = server.configured_ip_addresses(is_global=True)
+    public_addresses = server.configured_ip_addresses(is_public=True)
     assert len(public_addresses) == 0
 
 

@@ -28,3 +28,15 @@ def test_custom_image_with_uuid(create_server, custom_alpine_image):
 
     # Make sure the server can be connected to.
     assert server.output_of('whoami') == 'alpine'
+
+
+def test_custom_image_with_uefi(create_server, custom_ubuntu_uefi_image):
+    """ Custom images with firmware type uefi can be used. """
+
+    # Create an image that uses UEFI.
+    image_uuid = custom_ubuntu_uefi_image.uuid
+    server = create_server(image=image_uuid, username='ubuntu', use_ipv6=False)
+
+    # Make sure the server can be connected to.
+    assert server.output_of('whoami') == 'ubuntu'
+    assert server.file_path_exists('/sys/firmware/efi/')

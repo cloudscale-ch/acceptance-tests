@@ -286,9 +286,10 @@ class Server(CloudscaleResource):
             # the interface comes up.
             #
             # To ensure that the L3 switches have valid neighbor entries for
-            # the IPv6 global unicast address we ping a designated anycast
-            # address before starting the tests.
-            self.ping('2a06:c00:bb::')
+            # the IPv6 global unicast address we ping a designated IPv6
+            # address. A DNS lookup is used for it, to not hard-code the
+            # address. The DNS lookup is usually done via IPv4 on the host.
+            self.ping(self.resolve('api.cloudscale.ch', version=6)[0])
 
     @with_trigger('server.wait-for-cloud-init')
     def wait_for_cloud_init(self, host, timeout):
@@ -495,6 +496,23 @@ class Server(CloudscaleResource):
             time.sleep(max(wait - (time.monotonic() - start), 0))
 
         raise AssertionError(f"{error}: {cmd.stdout}, {cmd.stderr}")
+
+    def resolve(self, name, version):
+        """ Resolve the given name, returing the IPv4 or IPv6 addresses
+        associated with it.
+
+        """
+
+        if version == 4:
+            command = f'getent ahostsv4 {name}'
+        else:
+            command = f'getent ahostsv6 {name}'
+
+        addrs = (a for a in self.output_of(command).splitlines())
+        addrs = (a.strip().split(' ')[0] for a in addrs)
+        addrs = (a for a in addrs if a)
+
+        return tuple(addrs)
 
     def file_path_exists(self, path):
         """ Returns true if the given path exists. """

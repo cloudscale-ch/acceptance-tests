@@ -19,6 +19,7 @@ These tests are run regularly against our public infrastructure as well as our i
 |                     | [test_cors_headers](./test_api.py#L53)                                           | -        |
 | **Custom Image**    | [test_custom_image_with_slug](./test_custom_image.py#L11)                        | custom   |
 |                     | [test_custom_image_with_uuid](./test_custom_image.py#L22)                        | custom   |
+|                     | [test_custom_image_with_uefi](./test_custom_image.py#L33)                        | custom   |
 | **Floating IP**     | [test_floating_ip_connectivity](./test_floating_ip.py#L14)                       | default  |
 |                     | [test_multiple_floating_ips](./test_floating_ip.py#L32)                          | default  |
 |                     | [test_floating_ip_stability](./test_floating_ip.py#L54)                          | default  |

@@ -62,7 +62,7 @@ LOCKS_PATH = f'{RUNTIME_PATH}/locks'
 IMAGE_SPECIFIC_USER_DATA = {
 
     # Disable auto-updates in Flatcar (they can cause unexpected reboots)
-    re.compile(r'flatcar-[0-9.]+'): json.dumps({
+    re.compile(r'flatcar-[a-z0-9.]+'): json.dumps({
         'ignition': {'version': '2.3.0'},
         'systemd': {
             'units': [

@@ -43,6 +43,7 @@ COMMON = (
 
 # The following images are excluded from automatic testing
 EXCLUDE = (
+    'fcos',
     'opnsense',
     'pfsense',
 )

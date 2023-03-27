@@ -81,8 +81,8 @@ def test_floating_ip_stability(prober, create_server, server_group,
             # Wait up to 15 seconds for the change to propagate
             prober.ping(floating_ip, timeout=1, tries=15)
 
-            # Expect twenty successful pings in 10 seconds
-            prober.ping(floating_ip, interval=0.5, count=20)
+            # Expect 60 successful pings in 30 seconds
+            prober.ping(floating_ip, interval=0.5, count=60)
 
             # Make sure the DHCP assigned IP still works
             prober.ping(s.ip('public', floating_ip.version))

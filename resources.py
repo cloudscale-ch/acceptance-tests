@@ -819,8 +819,25 @@ class FloatingIP(CloudscaleResource):
         self.info = self.api.post('/floating-ips', json=self.spec).json()
 
     @with_trigger('floating-ip.assign')
-    def assign(self, server):
-        self.api.patch(self.href, json={'server': server.uuid})
+    def assign(self, server=None, load_balancer=None):
+        assert not (server and load_balancer), \
+            "Can't assign a floating IP to a server and a load balancer at " \
+            "the same time"
+
+        if server:
+            json = {'server': server.uuid}
+        elif load_balancer:
+            json = {'load_balancer': load_balancer.uuid}
+        else:
+            raise AssertionError(
+                'The cloudscale.ch API does not support unassiging '
+                'a floating IP.'
+            )
+
+        self.api.patch(
+            self.href,
+            json=json,
+        )
         self.refresh()
 
     @with_trigger('floating-ip.update')
@@ -1136,17 +1153,6 @@ class LoadBalancer(CloudscaleResource):
             }).json())
         return self.health_monitors[-1]
 
-    def is_port_online(self, addr_family=4):
-        """ Test if the LB port is reachable. """
-
-        # If no listener is configured it can't be online
-        if not self.listeners:
-            return False
-
-        return all(is_port_online(str(self.vip(addr_family)),
-                                  listener['protocol_port'])
-                   for listener in self.listeners)
-
     def get_url(self, prober, url='/', addr_family=4, port=None, ssl=False):
         """ Request an URL from a load balancer port """
 
@@ -1154,8 +1160,9 @@ class LoadBalancer(CloudscaleResource):
             construct_http_url(self.vip(addr_family), url, port, ssl)
         )
 
-    def verify_backend(self, prober, backend, count=1):
+    def verify_backend(self, prober, backend, count=1, port=None):
         """ Verify the next count requests go to the given backend server. """
 
         for i in range(count):
-            assert self.get_url(prober, url='/hostname') == backend.name
+            assert (self.get_url(prober, url='/hostname', port=port)
+                    == backend.name)

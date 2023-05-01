@@ -367,6 +367,8 @@ track_in_event_log('floating-ip.assign.after', include={
     'network': lambda a: str(a.args.self.network),
     'server_name': 'args.server.name',
     'server_uuid': 'args.server.uuid',
+    'load_balancer_name': 'args.load_balancer.name',
+    'load_balancer_uuid': 'args.load_balancer.uuid',
     **RESULT,
 })
 

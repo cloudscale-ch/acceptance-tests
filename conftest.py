@@ -736,7 +736,7 @@ def create_load_balancer_scenario(request, function_api, zone, prober, image,
         ))
 
         # Wait for the load balancer to be running.
-        load_balancer.wait_for('running', seconds=90)
+        load_balancer.wait_for('running', seconds=120)
 
         # Create a backend pool
         pool = load_balancer.add_pool(f'{name}-pool', algorithm, pool_protocol)
@@ -768,7 +768,7 @@ def create_load_balancer_scenario(request, function_api, zone, prober, image,
         # Wait for LB to become operational
         # Note: This only ensures 1 backend is active, we assume all backends
         # become active at the same time.
-        retry_for(seconds=40).or_fail(
+        retry_for(seconds=90).or_fail(
             prober.http_get,
             msg='Load balancer was not operational within 90s.',
             url=construct_http_url(load_balancer.vip(4), port=port, ssl=ssl),

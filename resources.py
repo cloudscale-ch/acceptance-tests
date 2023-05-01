@@ -77,6 +77,34 @@ class CloudscaleResource:
     def refresh(self):
         self.info = self.api.get(self.href).json()
 
+    def wait_for(self, status, seconds=60):
+        timeout = datetime.now() + timedelta(seconds=seconds)
+        self.wait_until(status, timeout=timeout)
+
+    @with_trigger('resource.wait')
+    def wait_until(self, status, timeout=None):
+
+        timeout = timeout or self.default_timeout()
+        seconds = (timeout - datetime.now()).total_seconds()
+
+        negate = status.startswith('!')
+        status = negate and status[1:] or status
+
+        while datetime.now() < timeout:
+            self.refresh()
+
+            if negate:
+                if self.status != status:
+                    break
+            else:
+                if self.status == status:
+                    break
+
+            # Don't check this too eagerly, to keep log output less noisy
+            time.sleep(2.5)
+        else:
+            raise Timeout(f"Waited more than {seconds}s for '{status}' status")
+
     def delete(self):
         if not self.created:
             return
@@ -155,34 +183,6 @@ class Server(CloudscaleResource):
         self.info = self.api.post('/servers', json=self.spec).json()
         self.wait_for('running', seconds=SERVER_START_TIMEOUT)
         self.connect()
-
-    def wait_for(self, status, seconds=60):
-        timeout = datetime.now() + timedelta(seconds=seconds)
-        self.wait_until(status, timeout=timeout)
-
-    @with_trigger('server.wait')
-    def wait_until(self, status, timeout=None):
-
-        timeout = timeout or self.default_timeout()
-        seconds = (timeout - datetime.now()).total_seconds()
-
-        negate = status.startswith('!')
-        status = negate and status[1:] or status
-
-        while datetime.now() < timeout:
-            self.refresh()
-
-            if negate:
-                if self.status != status:
-                    break
-            else:
-                if self.status == status:
-                    break
-
-            # Don't check this too eagerly, to keep log output less noisy
-            time.sleep(2.5)
-        else:
-            raise Timeout(f"Waited more than {seconds}s for '{status}' status")
 
     def wait_for_http_content(self, host, content, seconds, port=80):
         """ Reads the http response of the host until the expected

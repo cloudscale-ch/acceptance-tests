@@ -237,12 +237,12 @@ track_in_event_log('server.create.after', include={
     'private_ipv6': lambda a: str(a.args.self.ip('private', 6, False)),
 })
 
-track_in_event_log('server.wait.before', include={
+track_in_event_log('resource.wait.before', include={
     **RESOURCE_ID,
     'status': 'args.status',
 })
 
-track_in_event_log('server.wait.after', include={
+track_in_event_log('resource.wait.after', include={
     **RESOURCE_ID,
     **RESULT,
     'status': 'args.status',

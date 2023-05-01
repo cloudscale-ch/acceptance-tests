@@ -25,6 +25,20 @@ These tests are run regularly against our public infrastructure as well as our i
 |                     | [test_floating_ip_stability](./test_floating_ip.py#L54)                          | default  |
 |                     | [test_floating_ip_failover](./test_floating_ip.py#L97)                           | default  |
 |                     | [test_floating_network](./test_floating_ip.py#L140)                              | default  |
+| **Lbaas**           | [test_simple_tcp_load_balancer](./test_lbaas.py#L24)                             | default  |
+|                     | [test_load_balancer_end_to_end](./test_lbaas.py#L48)                             | default  |
+|                     | [test_multiple_listeners](./test_lbaas.py#L81)                                   | default  |
+|                     | [test_multiple_listeners_multiple_pools](./test_lbaas.py#L113)                   | default  |
+|                     | [test_balancing_algorithm_round_robin](./test_lbaas.py#L166)                     | default  |
+|                     | [test_balancing_algorithm_source_ip](./test_lbaas.py#L202)                       | default  |
+|                     | [test_balancing_algorithm_least_connections](./test_lbaas.py#L251)               | default  |
+|                     | [test_backend_health_monitors](./test_lbaas.py#L292)                             | default  |
+|                     | [test_pool_member_change](./test_lbaas.py#L372)                                  | default  |
+|                     | [test_private_load_balancer_frontend](./test_lbaas.py#L464)                      | default  |
+|                     | [test_floating_ip](./test_lbaas.py#L506)                                         | default  |
+|                     | [test_floating_ip_reassign](./test_lbaas.py#L540)                                | default  |
+|                     | [test_frontend_allowed_cidr](./test_lbaas.py#L621)                               | default  |
+|                     | [test_proxy_protocol](./test_lbaas.py#L696)                                      | default  |
 | **Private Network** | [test_private_ip_address_on_all_images](./test_private_network.py#L14)           | all      |
 |                     | [test_private_network_connectivity_on_all_images](./test_private_network.py#L35) | all      |
 |                     | [test_multiple_private_network_interfaces](./test_private_network.py#L88)        | default  |

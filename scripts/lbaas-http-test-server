@@ -1,0 +1,159 @@
+#!/usr/bin/env -S python3 -u
+# Note: It's important to use unbuffered output, otherwise log
+# lines won't appear in the journal immediately.
+
+import http.server
+import ssl
+
+from argparse import ArgumentParser
+from http import HTTPStatus
+from ipaddress import ip_address
+from socket import gethostname
+from struct import unpack
+
+
+class LBaaSTestHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
+
+    server_version = f'LBaaSTestHTTP/{http.server.__version__}'
+    protocol_version = 'HTTP/1.1'
+
+    # PROXY protocol v2 command byte map
+    command_map = {
+        0x00: 'LOCAL',
+        0x01: 'PROXY',
+    }
+
+    # PROXY protocol v2 protocol byte map
+    proto_map = {
+        0x00: 'UNSPEC',
+        0x11: 'TCP4',
+        0x12: 'UDP6',
+        0x21: 'TCP6',
+        0x22: 'UDP6',
+        0x31: 'UNIX STREAM',
+        0x32: 'UNIX DGRAM',
+    }
+
+    def handle(self):
+
+        # See https://www.haproxy.org/download/1.8/doc/proxy-protocol.txt
+        # for the PROXY protocol specification
+
+        # Peek into the input stream to detect a PROXY protocol header
+        proxy_header = self.rfile.peek(12)
+
+        if proxy_header.startswith(b'PROXY '):
+            # PROXY protocol V1 request
+
+            # Read the header from the input stream, maximum length is
+            # 107 chars
+            proxy_line = self.rfile.readline(107).strip().decode('ascii')
+
+            dummy, protocol, src_ip, dst_ip, src_port, dst_port = \
+                proxy_line.split(' ')
+
+            self.log_message(
+                'PROXY V1 header received: %s %s %s %s %s',
+                protocol, src_ip, dst_ip, src_port, dst_port,
+            )
+
+            self.client_address = (src_ip, int(src_port))
+
+        elif proxy_header.startswith(
+                b'\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A'
+        ):
+            # PROXY protocol V2 request
+
+            # consume the header
+            self.rfile.read(12)
+
+            # Read protocol version, command, protocol and length
+            raw = self.rfile.read(4)
+            command_version, af_proto, length = unpack('!BBH', raw)
+
+            # Decode command and version
+            proto_version = command_version >> 4
+            if proto_version != 2:
+                raise NotImplementedError(
+                    f'Unknown PROXY protocol version {proto_version}'
+                )
+
+            command = LBaaSTestHTTPRequestHandler.command_map[
+                command_version & 0x0f
+            ]
+
+            proto = LBaaSTestHTTPRequestHandler.proto_map[af_proto]
+
+            addr = self.rfile.read(length)
+
+            # Decode addresses
+            if af_proto >> 4 == 1:
+                # address family is AF_INET (IPv4)
+                src_ip = ip_address(addr[0:4])
+                dst_ip = ip_address(addr[4:8])
+                src_port, dst_port = unpack('!HH', addr[8:12])
+            elif af_proto >> 4 == 2:
+                # address family is AF_INET6 (IPv6)
+                src_ip = ip_address(addr[0:16])
+                dst_ip = ip_address(addr[16:32])
+                src_port, dst_port = unpack('!HH', addr[32:36])
+
+            self.log_message(
+                'PROXY V2 header received: %s %s %s %s %s %s',
+                command, proto, src_ip, dst_ip, src_port, dst_port
+            )
+
+            self.client_address = (src_ip, src_port)
+
+        return super().handle()
+
+    def do_GET(self):
+        if self.path.startswith('/endless/'):
+            # Special request path to write 1 byte in an endless loop.
+            # This is used to simulate longer requests and to keep the
+            # connection open.
+            self.send_response(HTTPStatus.OK)
+            self.send_header('Content-type', 'text/plain')
+            self.end_headers()
+            i = 0
+            while True:
+                try:
+                    self.wfile.write(bytes(i))
+                    self.wfile.flush()
+                except ConnectionResetError:
+                    break
+                i += 1
+
+        elif self.path == '/hostname':
+            # Special request path to return the backend hostname
+            hostname = gethostname().encode('utf-8')
+            self.send_response(HTTPStatus.OK)
+            self.send_header('Content-type', 'text/plain')
+            self.send_header('Content-Length', str(len(hostname)))
+            self.end_headers()
+            self.wfile.write(hostname)
+
+        else:
+            # Defer all other paths to SimpleHTTPRequestHandler
+            return super().do_GET()
+
+
+parser = ArgumentParser()
+parser.add_argument('--ssl', action='store_true')
+parser.add_argument('--port', type=int, default=8000)
+
+args = parser.parse_args()
+
+with http.server.ThreadingHTTPServer(
+        ('', args.port),
+        LBaaSTestHTTPRequestHandler
+) as server:
+    print(f'LBaaS test HTTP server running on '
+          f'{":".join(map(str, server.server_address))}')
+    if args.ssl:
+        server.socket = ssl.wrap_socket(
+            server.socket,
+            certfile='./server.pem',
+            server_side=True,
+        )
+    server.serve_forever()

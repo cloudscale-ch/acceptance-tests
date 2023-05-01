@@ -33,6 +33,7 @@ from psutil import Process
 from testinfra.backend.paramiko import ParamikoBackend
 from testinfra.utils import cached_property as testinfra_cached_property
 from types import SimpleNamespace
+from uuid import uuid4
 from warnings import warn
 
 
@@ -577,3 +578,125 @@ def is_public(address):
         return address.is_global
 
     return address.is_global or address in ip_network('100.64.0.0/10')
+
+
+def construct_http_url(ip, path='/', port=None, ssl=False):
+    """ Construct a HTTP URL for a server reachable on an IP address. """
+
+    method = 'https' if ssl else 'http'
+
+    port = f':{port}' if port else ''
+
+    if ip_address(ip).version == 6:
+        ip = f'[{ip}]'
+
+    return f'{method}://{ip}{port}{path}'
+
+
+def start_persistent_download(prober, load_balancer, backends, name='wget'):
+    """ Start a persistent download which does not end until the connection or
+    the process is terminated.
+
+    This uses a special URL path on the lbaas-http-test-server which sends
+    random data in an endless loop.
+    """
+
+    uuid = uuid4()
+    prober.run(oneliner(f'''
+        systemd-run --user --unit {name}
+        wget
+        --output-document /dev/null
+        --connect-timeout 5
+        --tries 1
+        {construct_http_url(load_balancer.vip(4), f"/endless/{uuid}")}
+    '''))
+
+    def check_backends():
+        backends_hit = get_backends_for_request(
+            backends,
+            f'/endless/{uuid}',
+            200,
+        )
+        # Assert exactly one backend is returned
+        assert len(backends_hit) == 1
+
+    # The request sometimes only appears in the log after a few seconds
+    retry_for(seconds=10).or_fail(
+        check_backends,
+        msg='Could not find backend for request within 10s.',
+    )
+
+    return get_backends_for_request(backends, f'/endless/{uuid}', 200)[0]
+
+
+def get_backends_for_request(backends, url='/', status_code=200):
+    """ Returns all backends which have received requests for an URL. """
+
+    def check_backend(backend):
+        return backend.run(oneliner(f'''
+            journalctl
+            --user-unit lbaas-http-test-server
+            | grep '"GET {url} HTTP/1.1" {status_code} -'
+        ''')).succeeded
+
+    return list(filter(check_backend, backends))
+
+
+def setup_lbaas_http_test_server(backend, ssl=False):
+    """ Upload the HTTP test server to the backend and start it. """
+
+    # Create some content indetifying the server
+    backend.run('echo "Backend server running on $(hostname)." > index.html')
+
+    if ssl:
+        # Crete a SSL server certificate and private key
+        backend.run(oneliner('''
+            openssl req
+            -new
+            -x509
+            -keyout server.pem
+            -out server.pem
+            -days 365
+            -nodes
+            -batch
+        '''))
+
+    # Copy test server Python script to backend server
+    backend.put_file('scripts/lbaas-http-test-server')
+    backend.run('chmod +x lbaas-http-test-server')
+
+    # Run the backend server as a transient systemd service
+    backend.run(oneliner(f'''
+        systemd-run
+        --user
+        --unit lbaas-http-test-server
+        ./lbaas-http-test-server {"--ssl" if ssl else ""}
+    '''))
+
+
+def setup_lbaas_backend(backend, load_balancer, pool, backend_network,
+                        ssl=False):
+    """ Configures a server to work as an LBaaS test HTTP backend.
+
+    The server is plugged into the backend network, a simple HTTP test server
+    is started added and the server is added to the load balancer pool.
+
+    Optionally SSL is setup for the HTTP test server.
+    """
+
+    # Plug the backend server into the backend network
+    if backend_network:
+        interfaces = [{'network': iface['network']['uuid']}
+                      for iface in backend.interfaces]
+        interfaces.append({'network': backend_network.uuid})
+        backend.update(interfaces=interfaces)
+
+    # Setup the HTTP test server
+    setup_lbaas_http_test_server(backend, ssl)
+
+    # Add the backend server to the pool
+    private_iface = backend.ip_address_config('private', 4,
+                                              backend_network.uuid)
+    return load_balancer.add_pool_member(pool, backend.name, 8000,
+                                         private_iface['address'],
+                                         private_iface['subnet']['uuid'])

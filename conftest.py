@@ -17,14 +17,18 @@ from paramiko import ECDSAKey
 from pathlib import Path
 from resources import CustomImage
 from resources import FloatingIP
+from resources import LoadBalancer
 from resources import Network
 from resources import Server
 from resources import ServerGroup
 from resources import Volume
+from util import construct_http_url
 from util import global_run_id
 from util import in_parallel
 from util import is_matching_slug
 from util import is_present_in_zone
+from util import retry_for
+from util import setup_lbaas_backend
 from xdist import is_xdist_master
 from xdist import is_xdist_worker
 
@@ -657,5 +661,120 @@ def upload_custom_image(request, session_api, zone):
             raise RuntimeError(f"Wrong SHA-256 for {url}: {sha256}")
 
         return image
+
+    return factory
+
+
+@pytest.fixture(scope='function')
+def create_load_balancer(request, function_api, zone):
+    """ Factory to create a load balancer. """
+
+    def factory(name='load-balancer', vip_addresses=None):
+        lb = LoadBalancer(
+            request,
+            function_api,
+            name=name,
+            zone=zone,
+            vip_addresses=vip_addresses,
+        )
+        lb.create()
+        return lb
+
+    return factory
+
+
+@pytest.fixture(scope='function')
+def create_load_balancer_scenario(request, function_api, zone, prober, image,
+                                  create_load_balancer, create_server,
+                                  create_private_network):
+    """ Factory to create a load balancer scenario setup.
+
+    The scenario includes:
+    * A load balancer on a public or private frontend network
+    * Listener with one listening TCP port
+    * A pool with a configurable distribution algorithm
+    * One or more backend servers, setup with a test HTTP server
+    * A private network connecting the load balancer and the backend servers
+    * An optional health monitor
+    """
+
+    def factory(num_backends=2,
+                algorithm='round_robin',
+                port=None,
+                health_monitor=None,
+                ssl=False,
+                frontend_subnet=None,
+                name='lb',
+                prober=prober,
+                allowed_cidrs=None,
+                pool_protocol='tcp',
+                ):
+
+        vip_addresses = (
+            [{'subnet': frontend_subnet.uuid}] if frontend_subnet else None
+        )
+
+        if port is None:
+            port = 443 if ssl else 80
+
+        # Create load balancer
+        load_balancer = create_load_balancer(
+            name=f'{name}',
+            vip_addresses=vip_addresses,
+        )
+
+        # Create backend servers
+        backends = in_parallel(create_server, (
+            {
+                'name': f'backend{i + 1}',
+                'image': image,
+                'use_public_network': False,
+                'use_private_network': True,
+                'jump_host': prober,
+            }
+            for i in range(num_backends)
+        ))
+
+        # Wait for the load balancer to be running.
+        load_balancer.wait_for('running', seconds=90)
+
+        # Create a backend pool
+        pool = load_balancer.add_pool(f'{name}-pool', algorithm, pool_protocol)
+
+        # Create a private network with a subnet and attach it to the backend
+        # servers and start a simple webserver on the backend
+        private_network = create_private_network(auto_create_ipv4_subnet=True)
+        for backend in backends:
+            setup_lbaas_backend(
+                backend,
+                load_balancer,
+                pool,
+                private_network,
+                ssl,
+            )
+
+        # Create a listener on the load balancer
+        listener = load_balancer.add_listener(
+            f'{name}-port-{port}',
+            pool,
+            port,
+            allowed_cidrs,
+        )
+
+        # Create a health monitor
+        if health_monitor:
+            load_balancer.add_health_monitor(pool, health_monitor)
+
+        # Wait for LB to become operational
+        # Note: This only ensures 1 backend is active, we assume all backends
+        # become active at the same time.
+        retry_for(seconds=40).or_fail(
+            prober.http_get,
+            msg='Load balancer was not operational within 90s.',
+            url=construct_http_url(load_balancer.vip(4), port=port, ssl=ssl),
+            insecure=ssl,
+        )
+
+        return load_balancer, listener, pool, backends, private_network
 
     return factory

@@ -14,6 +14,7 @@ from ipaddress import ip_interface
 from ipaddress import ip_network
 from pathlib import Path
 from testinfra.host import Host
+from util import construct_http_url
 from util import FaultTolerantParamikoBackend
 from util import generate_server_name
 from util import host_connect_factory
@@ -1001,3 +1002,160 @@ class CustomImage(CloudscaleResource):
             return
 
         raise Timeout(f"Waited more than {seconds}s for {self.url}")
+
+
+class LoadBalancer(CloudscaleResource):
+
+    def __init__(self, request, api, name, zone, flavor='lb-standard',
+                 vip_addresses=None):
+
+        super().__init__(request, api)
+        self.spec = {
+            'name': f'{RESOURCE_NAME_PREFIX}-{name}',
+            'zone': zone,
+            'flavor': flavor,
+        }
+        if vip_addresses:
+            self.spec['vip_addresses'] = vip_addresses
+
+        # Initialize lists of subobjects
+        self.listeners = []
+        self.pools = []
+        self.pool_members = []
+        self.health_monitors = []
+
+    def refresh(self):
+        super().refresh()
+
+        # Update all "subresources"
+        for kind in ('listeners', 'pools', 'pool_members', 'health_monitors'):
+            setattr(self, kind, [self.api.get(i['href']).json()
+                                 for i in getattr(self, kind)])
+
+    def vip_address_config(self, ip_version):
+        for address in self.vip_addresses:
+            if address['version'] != ip_version:
+                continue
+
+            return address
+
+        # No address of this type found
+        return None
+
+    def vip(self, ip_version, fail_if_missing=True):
+        """ Get VIP address from the given IP version.
+
+        If `fail_if_missing` is set to False, None may be returned.
+
+        """
+        config = self.vip_address_config(ip_version)
+
+        if config:
+            return ip_address(config['address'])
+        elif fail_if_missing:
+            raise AssertionError(f"No IPv{ip_version} address.")
+        else:
+            return None
+
+    @with_trigger('load-balancer.create')
+    def create(self):
+        self.info = self.api.post('load-balancers', json=self.spec).json()
+
+    @with_trigger('load-balancer.add-pool')
+    def add_pool(self, name, algorithm, protocol):
+        self.pools.append(self.api.post(
+            'load-balancers/pools',
+            json={
+                'name': f'{RESOURCE_NAME_PREFIX}-pool-{name}',
+                'load_balancer': self.uuid,
+                'algorithm': algorithm,
+                'protocol': protocol,
+            }).json())
+        return self.pools[-1]
+
+    @with_trigger('load-balancer.add-pool-member')
+    def add_pool_member(self, pool, name, protocol_port, address, subnet,
+                        monitor_port=None):
+        self.pool_members.append(self.api.post(
+            f'load-balancers/pools/{pool["uuid"]}/members',
+            json={
+                'name': f'{RESOURCE_NAME_PREFIX}-pool-member-'
+                        f'{name}',
+                'protocol_port': protocol_port,
+                'monitor_port': monitor_port,
+                'address': address,
+                'subnet': subnet,
+            }).json())
+        return self.pool_members[-1]
+
+    @with_trigger('load-balancer.remove-pool-member')
+    def remove_pool_member(self, pool, member):
+        self.api.delete(
+            f'load-balancers/pools/{pool["uuid"]}/members/{member["uuid"]}',
+        )
+
+        self.pool_members = list(filter(lambda x: x['uuid'] != member["uuid"],
+                                        self.pool_members))
+
+    @with_trigger('load-balancer.disable-pool-member')
+    def toggle_pool_member(self, pool, member, enabled=True):
+        self.api.patch(
+            f'load-balancers/pools/{pool["uuid"]}/members/{member["uuid"]}',
+            json={'enabled': enabled},
+        )
+
+    @with_trigger('load-balancer.add-listener')
+    def add_listener(self, name, pool, protocol_port, allowed_cidrs=None,
+                     protocol='tcp'):
+        self.listeners.append(self.api.post(
+            'load-balancers/listeners',
+            json={
+                'name': f'{RESOURCE_NAME_PREFIX}-listener-{name}',
+                'pool': pool['uuid'],
+                'protocol': 'tcp',
+                'protocol_port': protocol_port,
+                'allowed_cidrs': allowed_cidrs or [],
+            }).json())
+        return self.listeners[-1]
+
+    @with_trigger('load-balancer.update-listener')
+    def update_listener(self, listener, **kwargs):
+        self.api.patch(
+            f'load-balancers/listeners/{listener["uuid"]}',
+            json=kwargs,
+        )
+
+    @with_trigger('load-balancer.add-health-monitor')
+    def add_health_monitor(self, pool, monitor):
+        self.health_monitors.append(self.api.post(
+            'load-balancers/health-monitors',
+            json={
+                'pool': pool['uuid'],
+                'type': monitor['type'],
+                'http': monitor['http'],
+            }).json())
+        return self.health_monitors[-1]
+
+    def is_port_online(self, addr_family=4):
+        """ Test if the LB port is reachable. """
+
+        # If no listener is configured it can't be online
+        if not self.listeners:
+            return False
+
+        return all(is_port_online(str(self.vip(addr_family)),
+                                  listener['protocol_port'])
+                   for listener in self.listeners)
+
+    def get_url(self, prober, url='/', addr_family=4, port=None, ssl=False):
+        """ Request an URL from a load balancer port """
+
+        return prober.http_get(
+            construct_http_url(self.vip(addr_family), url, port, ssl)
+        )
+
+    def verify_backend(self, prober, backend, count=1):
+        """ Verify the next count requests go to the given backend server. """
+
+        for i in range(count):
+            assert self.get_url(prober, url='/hostname') == backend.name

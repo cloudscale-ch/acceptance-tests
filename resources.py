@@ -12,6 +12,7 @@ from hashlib import blake2b
 from ipaddress import ip_address
 from ipaddress import ip_interface
 from ipaddress import ip_network
+from pathlib import Path
 from testinfra.host import Host
 from util import FaultTolerantParamikoBackend
 from util import generate_server_name
@@ -778,6 +779,13 @@ class Server(CloudscaleResource):
             return block_size * block_count
 
         raise NotImplementedError(f"Unsupported filesystem: {fs}")
+
+    def put_file(self, filename, remote_filename=None):
+        if not remote_filename:
+            remote_filname = Path(filename).name
+
+        sftp = self.host.backend.client.open_sftp()
+        sftp.put(filename, remote_filname)
 
 
 class FloatingIP(CloudscaleResource):

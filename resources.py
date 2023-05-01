@@ -14,6 +14,7 @@ from ipaddress import ip_interface
 from ipaddress import ip_network
 from pathlib import Path
 from testinfra.host import Host
+from util import build_http_url
 from util import FaultTolerantParamikoBackend
 from util import generate_server_name
 from util import host_connect_factory
@@ -785,10 +786,10 @@ class Server(CloudscaleResource):
 
     def put_file(self, filename, remote_filename=None):
         if not remote_filename:
-            remote_filname = Path(filename).name
+            remote_filename = Path(filename).name
 
         sftp = self.host.backend.client.open_sftp()
-        sftp.put(filename, remote_filname)
+        sftp.put(filename, remote_filename)
 
 
 class FloatingIP(CloudscaleResource):
@@ -819,8 +820,25 @@ class FloatingIP(CloudscaleResource):
         self.info = self.api.post('/floating-ips', json=self.spec).json()
 
     @with_trigger('floating-ip.assign')
-    def assign(self, server):
-        self.api.patch(self.href, json={'server': server.uuid})
+    def assign(self, server=None, load_balancer=None):
+        assert not (server and load_balancer), \
+            "Can't assign a Floating IP to a server and a load balancer at " \
+            "the same time"
+
+        if server:
+            json = {'server': server.uuid}
+        elif load_balancer:
+            json = {'load_balancer': load_balancer.uuid}
+        else:
+            raise AssertionError(
+                'The cloudscale.ch API does not support unassiging '
+                'a Floating IP.'
+            )
+
+        self.api.patch(
+            self.href,
+            json=json,
+        )
         self.refresh()
 
     @with_trigger('floating-ip.update')
@@ -1002,3 +1020,153 @@ class CustomImage(CloudscaleResource):
             return
 
         raise Timeout(f"Waited more than {seconds}s for {self.url}")
+
+
+class LoadBalancer(CloudscaleResource):
+
+    def __init__(self, request, api, name, zone, flavor='lb-standard',
+                 vip_addresses=None):
+
+        super().__init__(request, api)
+        self.spec = {
+            'name': generate_server_name(request, name),
+            'zone': zone,
+            'flavor': flavor,
+        }
+        if vip_addresses:
+            self.spec['vip_addresses'] = vip_addresses
+
+        # Initialize lists of subobjects
+        self.listeners = []
+        self.pools = []
+        self.pool_members = []
+        self.health_monitors = []
+
+    def refresh(self):
+        super().refresh()
+
+        # Update all "subresources"
+        for kind in ('listeners', 'pools', 'pool_members', 'health_monitors'):
+            setattr(self, kind, [self.api.get(i['href']).json()
+                                 for i in getattr(self, kind)])
+
+    def vip_address_config(self, ip_version):
+        for address in self.vip_addresses:
+            if address['version'] != ip_version:
+                continue
+
+            return address
+
+        # No address of this type found
+        return None
+
+    def vip(self, ip_version, fail_if_missing=True):
+        """ Get VIP address from the given IP version.
+
+        If `fail_if_missing` is set to False, None may be returned.
+
+        """
+        config = self.vip_address_config(ip_version)
+
+        if config:
+            return ip_address(config['address'])
+        elif fail_if_missing:
+            raise AssertionError(f"No IPv{ip_version} address.")
+        else:
+            return None
+
+    @with_trigger('load-balancer.create')
+    def create(self):
+        self.info = self.api.post('load-balancers', json=self.spec).json()
+
+    @with_trigger('load-balancer.add-pool')
+    def add_pool(self, name, algorithm, protocol='tcp'):
+        self.pools.append(self.api.post(
+            'load-balancers/pools',
+            json={
+                'name': f'{RESOURCE_NAME_PREFIX}-pool-{name}',
+                'load_balancer': self.uuid,
+                'algorithm': algorithm,
+                'protocol': protocol,
+            }).json())
+        return self.pools[-1]
+
+    @with_trigger('load-balancer.add-pool-member')
+    def add_pool_member(self, pool, backend, backend_network):
+
+        private_iface = backend.ip_address_config('private', 4,
+                                                  backend_network.uuid)
+
+        self.pool_members.append(self.api.post(
+            f'load-balancers/pools/{pool["uuid"]}/members',
+            json={
+                'name': f'{RESOURCE_NAME_PREFIX}-pool-member-'
+                        f'{backend.name}',
+                'protocol_port': 8000,
+                'address': private_iface['address'],
+                'subnet': private_iface['subnet']['uuid'],
+            }).json())
+        return self.pool_members[-1]
+
+    @with_trigger('load-balancer.remove-pool-member')
+    def remove_pool_member(self, pool, member):
+        self.api.delete(
+            f'load-balancers/pools/{pool["uuid"]}/members/{member["uuid"]}',
+        )
+
+        self.pool_members = list(filter(lambda x: x['uuid'] != member["uuid"],
+                                        self.pool_members))
+
+    @with_trigger('load-balancer.disable-pool-member')
+    def toggle_pool_member(self, pool, member, enabled=True):
+        self.api.patch(
+            f'load-balancers/pools/{pool["uuid"]}/members/{member["uuid"]}',
+            json={'enabled': enabled},
+        )
+
+    @with_trigger('load-balancer.add-listener')
+    def add_listener(self, pool, protocol_port, allowed_cidrs=None, name=None,
+                     protocol='tcp'):
+
+        if name is None:
+            name = f'port-{protocol_port}'
+
+        self.listeners.append(self.api.post(
+            'load-balancers/listeners',
+            json={
+                'name': f'{RESOURCE_NAME_PREFIX}-listener-{name}',
+                'pool': pool['uuid'],
+                'protocol': 'tcp',
+                'protocol_port': protocol_port,
+                'allowed_cidrs': allowed_cidrs or [],
+            }).json())
+        return self.listeners[-1]
+
+    @with_trigger('load-balancer.update-listener')
+    def update_listener(self, listener, **kwargs):
+        self.api.patch(
+            f'load-balancers/listeners/{listener["uuid"]}',
+            json=kwargs,
+        )
+
+    @with_trigger('load-balancer.add-health-monitor')
+    def add_health_monitor(self, pool, monitor_type, monitor_http_config):
+        self.health_monitors.append(self.api.post(
+            'load-balancers/health-monitors',
+            json={
+                'pool': pool['uuid'],
+                'type': monitor_type,
+                'http': monitor_http_config,
+            }).json())
+        return self.health_monitors[-1]
+
+    def build_url(self, url='/', addr_family=4, port=None, ssl=False):
+        """ Build a URL to fetch content from a load balancer """
+        return build_http_url(self.vip(addr_family), url, port, ssl)
+
+    def verify_backend(self, prober, backend, count=1, port=None):
+        """ Verify the next count requests go to the given backend server. """
+
+        for i in range(count):
+            assert (prober.http_get(self.build_url(url='/hostname', port=port))
+                    == backend.name)

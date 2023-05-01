@@ -213,14 +213,31 @@ class Server(CloudscaleResource):
 
         raise Timeout(f"Waited more than {seconds}s for '{content}' at {url}")
 
-    def http_get(self, url):
+    def http_get(self, url, insecure=False):
         """ Runs curl or wget (whatever is available) and returns the body. """
 
         if self.run('command -v curl').exit_status == 0:
-            return self.output_of(f'curl -sL {url}')
+            insecure = '--insecure' if insecure else ''
+            return self.output_of(oneliner(f'''
+                curl
+                --silent
+                --location
+                --connect-timeout 5
+                {insecure}
+                {url}
+            '''))
 
         if self.run('command -v wget').exit_status == 0:
-            return self.output_of(f'wget -qO- {url}')
+            insecure = '--no-check-certificate' if insecure else ''
+            return self.output_of(oneliner(f'''
+                wget
+                --quiet
+                --output-document -
+                --connect-timeout 5
+                --tries 1
+                {insecure}
+                {url}
+            '''))
 
         raise NotImplementedError("No suitable HTTP client found")
 

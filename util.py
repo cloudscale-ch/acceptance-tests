@@ -121,7 +121,7 @@ def is_present_in_zone(image, zone_slug):
     return False
 
 
-def generate_server_name(request, name=None):
+def generate_server_name(request, original_name=''):
     """ Generates a name using the given prefix and suffix. """
 
     # By default, include the name of the test in the server name
@@ -131,13 +131,18 @@ def generate_server_name(request, name=None):
         scope = 'session'
 
     # Include a per-test run prefix and add an optionally chosen name as suffix
-    name = f'{RESOURCE_NAME_PREFIX}-{scope}-{name or ""}'.lower()
+    name = f'{RESOURCE_NAME_PREFIX}-{scope}-{original_name or ""}'.lower()
 
     # Replace everything that is not allowed in a hostname by a -
     name = re.sub(r'[^a-z0-9-\.]', '-', name)
 
     # Squeeze repeated -
     name = re.sub(r'-{2,}', '-', name)
+
+    # Truncate name to 63 characters, but keep the caller supplied name. This
+    # part might be important to distinguish different servers in a test
+    if len(name) > 63:
+        name = f'{name[:63-len(original_name)-1]}-{original_name.lower()}'
 
     # Remove - at the start or end
     name = name.strip('-')

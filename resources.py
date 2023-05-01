@@ -145,7 +145,7 @@ class Server(CloudscaleResource):
 
         # get a unique server name, unless explicitly disabled
         if auto_name:
-            name = generate_server_name(request, spec.get('name'))
+            name = generate_server_name(request, spec.get('name', ''))
         else:
             name = spec['name']
 

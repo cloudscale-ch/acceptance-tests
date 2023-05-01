@@ -129,11 +129,11 @@ def test_public_network_port_security(ip_version, two_servers_in_same_subnet):
     # Use ARP spoofing for IPv4, NDP spoofing for IPv6
     if ip_version == 4:
         victim_ip = ipv4
-        curl_params='-4'
+        curl_params = '-4'
         mtm_method = 'arp'
     else:
         victim_ip = ipv6
-        curl_params='-6'
+        curl_params = '-6'
         mtm_method = 'ndp'
 
     # This needs to match on IPv4 and IPv6 otherwise // means all addresses

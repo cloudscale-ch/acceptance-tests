@@ -160,7 +160,11 @@ def track_in_event_log(event, include=None):
         for k, v in include.items():
 
             if isinstance(v, str):
-                yield k, dot_access(v, attributes)
+                try:
+                    yield k, dot_access(v, attributes)
+                except AttributeError:
+                    # Ignore attribute if it does not exist
+                    pass
 
             elif callable(v):
                 yield k, v(SimpleNamespace(**attributes))

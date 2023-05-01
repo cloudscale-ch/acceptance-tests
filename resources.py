@@ -605,8 +605,11 @@ class Server(CloudscaleResource):
 
         return self.host.interface(self.nth_interface_name(1))
 
-    def ip_address_config(self, iface_type, ip_version):
+    def ip_address_config(self, iface_type, ip_version, network=None):
         for interface in self.interfaces:
+            if network and not interface['network']['uuid'] == network:
+                continue
+
             for address in interface['addresses']:
                 if interface['type'] != iface_type:
                     continue
@@ -619,13 +622,13 @@ class Server(CloudscaleResource):
         # No address of this type found
         return None
 
-    def ip(self, iface_type, ip_version, fail_if_missing=True):
+    def ip(self, iface_type, ip_version, fail_if_missing=True, network=None):
         """ Get IP address from the given interface type and version.
 
         If `fail_if_missing` is set to False, None may be returned.
 
         """
-        config = self.ip_address_config(iface_type, ip_version)
+        config = self.ip_address_config(iface_type, ip_version, network)
 
         if config:
             return ip_address(config['address'])

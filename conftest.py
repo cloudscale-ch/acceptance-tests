@@ -765,7 +765,7 @@ def create_load_balancer_scenario(request, function_api, zone, prober, image,
         ))
 
         # Wait for the load balancer to be running.
-        load_balancer.wait_for('running', seconds=90)
+        load_balancer.wait_for('running', seconds=120)
 
         # Create a backend pool
         pool = load_balancer.add_pool(f'{name}-pool', algorithm, pool_protocol)

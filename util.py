@@ -403,12 +403,12 @@ class Retryable(object):
         self.pause = pause
         self.exceptions = exceptions
 
-    def or_fail(self, fn, msg=None):
+    def or_fail(self, fn, msg=None, *args, **kwargs):
         timeout = datetime.utcnow() + timedelta(seconds=self.seconds)
 
         while datetime.utcnow() < timeout:
             try:
-                fn()
+                fn(*args, **kwargs)
             except self.exceptions as e:
                 last_exception = e
             else:
@@ -420,9 +420,9 @@ class Retryable(object):
 
         raise Timeout(msg) from last_exception
 
-    def or_warn(self, fn, msg=None):
+    def or_warn(self, fn, msg=None, *args, **kwargs):
         try:
-            self.or_fail(fn, msg=msg)
+            self.or_fail(fn, msg=msg, *args, **kwargs)
         except Timeout as e:
             warn(e)
 

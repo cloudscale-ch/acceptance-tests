@@ -785,10 +785,10 @@ class Server(CloudscaleResource):
 
     def put_file(self, filename, remote_filename=None):
         if not remote_filename:
-            remote_filname = Path(filename).name
+            remote_filename = Path(filename).name
 
         sftp = self.host.backend.client.open_sftp()
-        sftp.put(filename, remote_filname)
+        sftp.put(filename, remote_filename)
 
 
 class FloatingIP(CloudscaleResource):
@@ -821,7 +821,7 @@ class FloatingIP(CloudscaleResource):
     @with_trigger('floating-ip.assign')
     def assign(self, server=None, load_balancer=None):
         assert not (server and load_balancer), \
-            "Can't assign a floating IP to a server and a load balancer at " \
+            "Can't assign a Floating IP to a server and a load balancer at " \
             "the same time"
 
         if server:
@@ -831,7 +831,7 @@ class FloatingIP(CloudscaleResource):
         else:
             raise AssertionError(
                 'The cloudscale.ch API does not support unassiging '
-                'a floating IP.'
+                'a Floating IP.'
             )
 
         self.api.patch(
@@ -1028,7 +1028,7 @@ class LoadBalancer(CloudscaleResource):
 
         super().__init__(request, api)
         self.spec = {
-            'name': f'{RESOURCE_NAME_PREFIX}-{name}',
+            'name': generate_server_name(request, name),
             'zone': zone,
             'flavor': flavor,
         }
@@ -1143,13 +1143,13 @@ class LoadBalancer(CloudscaleResource):
         )
 
     @with_trigger('load-balancer.add-health-monitor')
-    def add_health_monitor(self, pool, monitor):
+    def add_health_monitor(self, pool, monitor_type, monitor_http_config):
         self.health_monitors.append(self.api.post(
             'load-balancers/health-monitors',
             json={
                 'pool': pool['uuid'],
-                'type': monitor['type'],
-                'http': monitor['http'],
+                'type': monitor_type,
+                'http': monitor_http_config,
             }).json())
         return self.health_monitors[-1]
 

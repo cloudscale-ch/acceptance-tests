@@ -685,11 +685,10 @@ def setup_lbaas_backend(backend, load_balancer, pool, backend_network,
     """
 
     # Plug the backend server into the backend network
-    if backend_network:
-        interfaces = [{'network': iface['network']['uuid']}
-                      for iface in backend.interfaces]
-        interfaces.append({'network': backend_network.uuid})
-        backend.update(interfaces=interfaces)
+    interfaces = [{'network': iface['network']['uuid']}
+                  for iface in backend.interfaces]
+    interfaces.append({'network': backend_network.uuid})
+    backend.update(interfaces=interfaces)
 
     # Setup the HTTP test server
     setup_lbaas_http_test_server(backend, ssl)

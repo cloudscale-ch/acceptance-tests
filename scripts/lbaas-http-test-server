@@ -1,6 +1,23 @@
 #!/usr/bin/env -S python3 -u
 # Note: It's important to use unbuffered output, otherwise log
 # lines won't appear in the journal immediately.
+""" HTTP test server server for load balancer tests
+
+This server is used as a test backend to test various load balancer features.
+
+This is a  extended version of the HTTP server included in the http.server
+standard library module. In addition to what python -m http.server does it
+has the following features:
+* Support for SSL using a certificate stored in server.pem in the current
+  working directory
+* Support for the PROXYV1 and PROXYV2 protocols. If a PROXY protocol header
+  is detected an additional log line with the protocol details is printed and
+  the logged source IP is changed to the IP from the PROXY header.
+* Special URI /hostname which just prints the local hostname in text/plain.
+* Special URI /endless/<XXX> which returns random data in an endless loop as
+  the response body. This can be used to create "persistent" connections with
+  unique URIs (in the <XXX> part of the URI).
+"""
 
 import http.server
 import ssl
@@ -8,6 +25,7 @@ import ssl
 from argparse import ArgumentParser
 from http import HTTPStatus
 from ipaddress import ip_address
+from random import getrandbits
 from socket import gethostname
 from struct import unpack
 
@@ -16,6 +34,10 @@ class LBaaSTestHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
     server_version = f'LBaaSTestHTTP/{http.server.__version__}'
     protocol_version = 'HTTP/1.1'
+
+    # PROXY protocol header identifiers
+    proxyv1_header = b'PROXY '
+    proxyv2_header = b'\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A'
 
     # PROXY protocol v2 command byte map
     command_map = {
@@ -42,7 +64,7 @@ class LBaaSTestHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         # Peek into the input stream to detect a PROXY protocol header
         proxy_header = self.rfile.peek(12)
 
-        if proxy_header.startswith(b'PROXY '):
+        if proxy_header.startswith(LBaaSTestHTTPRequestHandler.proxyv1_header):
             # PROXY protocol V1 request
 
             # Read the header from the input stream, maximum length is
@@ -60,7 +82,7 @@ class LBaaSTestHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.client_address = (src_ip, int(src_port))
 
         elif proxy_header.startswith(
-                b'\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A'
+                LBaaSTestHTTPRequestHandler.proxyv2_header
         ):
             # PROXY protocol V2 request
 
@@ -115,14 +137,17 @@ class LBaaSTestHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_response(HTTPStatus.OK)
             self.send_header('Content-type', 'text/plain')
             self.end_headers()
-            i = 0
+
+            # Just write random data in an endless loop to the output stream
+            # until the connection is closed.
             while True:
                 try:
-                    self.wfile.write(bytes(i))
+                    # Replace by random.randbytes(1) once the default image
+                    # supports Python 3.9
+                    self.wfile.write(chr(getrandbits(8)).encode('latin-1'))
                     self.wfile.flush()
                 except ConnectionResetError:
                     break
-                i += 1
 
         elif self.path == '/hostname':
             # Special request path to return the backend hostname

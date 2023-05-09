@@ -449,6 +449,7 @@ def two_servers_in_same_subnet(create_server, prober, image):
     Connections to the servers are done via a jumphost to avoid any
     interference with the public network for sensitive networking
     tests.
+
     """
 
     def network_id(server):
@@ -696,12 +697,14 @@ def create_load_balancer_scenario(request, function_api, zone, prober, image,
     * One or more backend servers, setup with a test HTTP server
     * A private network connecting the load balancer and the backend servers
     * An optional health monitor
+
     """
 
     def factory(num_backends=2,
                 algorithm='round_robin',
                 port=None,
-                health_monitor=None,
+                health_monitor_type=None,
+                health_monitor_http_config=None,
                 ssl=False,
                 frontend_subnet=None,
                 name='lb',
@@ -719,7 +722,7 @@ def create_load_balancer_scenario(request, function_api, zone, prober, image,
 
         # Create load balancer
         load_balancer = create_load_balancer(
-            name=f'{name}',
+            name=name,
             vip_addresses=vip_addresses,
         )
 
@@ -762,8 +765,9 @@ def create_load_balancer_scenario(request, function_api, zone, prober, image,
         )
 
         # Create a health monitor
-        if health_monitor:
-            load_balancer.add_health_monitor(pool, health_monitor)
+        if health_monitor_type:
+            load_balancer.add_health_monitor(pool, health_monitor_type,
+                                             health_monitor_http_config)
 
         # Wait for LB to become operational
         # Note: This only ensures 1 backend is active, we assume all backends

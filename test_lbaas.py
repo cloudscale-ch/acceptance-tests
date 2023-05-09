@@ -233,7 +233,7 @@ def test_algo_least_connections(server, create_load_balancer_scenario):
 
 
 @pytest.mark.parametrize('health_monitor_type',
-                        ['ping', 'tcp', 'http', 'https', 'tls-hello'])
+                         ['ping', 'tcp', 'http', 'https', 'tls-hello'])
 def test_health_monitors(prober, create_load_balancer_scenario,
                          health_monitor_type):
     """ Different health monitoring methods can be used to verify pool member

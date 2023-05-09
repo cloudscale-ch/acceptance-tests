@@ -20,7 +20,7 @@ from util import start_persistent_download
 
 
 def test_simple(prober, create_load_balancer_scenario):
-    """ Create a simple TCP load balancer with one backend """
+    """ Create a simple TCP load balancer with one backend. """
 
     # Create a load balancer setup with one backend on a private network
     load_balancer, listener, pool, backends, private_network = \
@@ -30,17 +30,17 @@ def test_simple(prober, create_load_balancer_scenario):
     content = load_balancer.get_url(prober, addr_family=4)
     assert 'Backend server running on ' in content
 
-    # test if the load balancer work on IPv6
+    # Test if the load balancer works on IPv6
     content = load_balancer.get_url(prober, addr_family=6)
     assert 'Backend server running on ' in content
 
 
 def test_end_to_end(prober, create_load_balancer_scenario):
-    """ Multi backend load balancer end-to-end test scenario
+    """ Multi backend load balancer end-to-end test scenario.
 
     * Load balancer on a public network with multiple backend servers on a
       private network
-    * Send TCP traffic through the LB and verify backend answers.
+    * Send TCP traffic through the LB and verify backend answers
 
     """
 
@@ -65,7 +65,7 @@ def test_multi_listener(prober, create_load_balancer_scenario):
 
     """
 
-    # Create a load balancer setup with one backends on a private network
+    # Create a load balancer setup with one backend on a private network
     load_balancer, listener1, pool, (backend, ), private_network = \
         create_load_balancer_scenario(num_backends=1)
 
@@ -76,7 +76,7 @@ def test_multi_listener(prober, create_load_balancer_scenario):
     assert (prober.http_get(f'http://{load_balancer.vip(4)}/hostname')
             == backend.name)
 
-    # Assert backend is also reachable on port 81 (try for 20s as it might not
+    # Assert backend is also reachable on port 81 (try for 30s as it might not
     # be ready yet)
     retry_for(seconds=30).or_fail(
         load_balancer.verify_backend,
@@ -110,7 +110,7 @@ def test_multi_listener_multi_pool(prober, create_server, image,
     # Create a second pool
     pool2 = load_balancer.add_pool(f'lb-pool-2', 'round_robin', 'tcp')
 
-    # create an additional backend network
+    # Create an additional backend network
     private_network2 = create_private_network(auto_create_ipv4_subnet=True)
 
     # Create an additional backend server for the second pool
@@ -221,7 +221,7 @@ def test_algo_least_connections(server, create_load_balancer_scenario):
         )
 
     # start a persistent endless download of random data to "block" one backend
-    backend_endless = start_persistent_download(prober, load_balancer,
+    blocked_backend = start_persistent_download(prober, load_balancer,
                                                 backends)
 
     # Verify requests go to the other backend as it has less active
@@ -229,24 +229,13 @@ def test_algo_least_connections(server, create_load_balancer_scenario):
     for i in range(10):
         backend_hit = load_balancer.get_url(prober, url='/hostname')
 
-        assert backend_hit != backend_endless.name
+        assert backend_hit != blocked_backend.name
 
 
-@pytest.mark.parametrize('health_monitor',
-                         [{'type': 'ping',
-                           'http': None},
-                          {'type': 'tcp',
-                           'http': None},
-                          {'type': 'http',
-                           'http': {'host': 'www.example.com'}},
-                          {'type': 'https',
-                           'http': {'version': '1.0'}},
-                          {'type': 'tls-hello',
-                           'http': None},
-                          ],
-                         ids=['ping', 'tcp', 'http', 'https', 'tls-helo'])
+@pytest.mark.parametrize('health_monitor_type',
+                        ['ping', 'tcp', 'http', 'https', 'tls-hello'])
 def test_health_monitors(prober, create_load_balancer_scenario,
-                         health_monitor):
+                         health_monitor_type):
     """ Different health monitoring methods can be used to verify pool member
     availability:
 
@@ -259,29 +248,37 @@ def test_health_monitors(prober, create_load_balancer_scenario,
 
     """
 
+    # Additional http parameter configuration for health monitor types
+    # which require additional configuration.
+    health_monitor_http_config = {
+        'http': {'host': 'www.example.com'},
+        'https': {'version': '1.0'},
+    }
+
     # Configure SSL backend for SSL health checks
-    ssl = health_monitor['type'] in ('https', 'tls-hello') and True or False
+    ssl = health_monitor_type in ('https', 'tls-hello') and True or False
 
     # Create a load balancer setup with 1 backend on a private network
     load_balancer, listener, pool, (backend, ), private_network = \
         create_load_balancer_scenario(
             num_backends=1,
-            health_monitor=health_monitor,
+            health_monitor_type=health_monitor_type,
+            health_monitor_http_config=health_monitor_http_config.get(
+                health_monitor_type),
             ssl=ssl,
     )
 
     # Test function to assert the desired load balancer and health monitor
     # status
-    def assert_load_balancer_and_monitor_status(load_balancer_status,
-                                                monitor_status):
+    def assert_status(load_balancer_status, monitor_status):
         load_balancer.refresh()
         assert load_balancer.status == load_balancer_status
-        assert (load_balancer.pool_members[0]['monitor_status']
-                == monitor_status)
+        assert load_balancer.pool_members[0]['monitor_status'] \
+            == monitor_status
 
     # Verify the health monitor reports the backend as up
     retry_for(seconds=20).or_fail(
-        assert_load_balancer_and_monitor_status,
+        assert_status,
         msg='Health monitor does not report "up" status after 20s',
         load_balancer_status='running',
         monitor_status='up',
@@ -290,7 +287,7 @@ def test_health_monitors(prober, create_load_balancer_scenario,
     # Shutdown the backend server and verify the health monitor goes down
     backend.stop()
     retry_for(seconds=20).or_fail(
-        assert_load_balancer_and_monitor_status,
+        assert_status,
         msg='Health monitor does not report "down" status after 20s',
         # As all pool members are down the LB is in status "error"
         load_balancer_status='error',
@@ -303,7 +300,7 @@ def test_health_monitors(prober, create_load_balancer_scenario,
     backend.start()
     setup_lbaas_http_test_server(backend, ssl)
     retry_for(seconds=20).or_fail(
-        assert_load_balancer_and_monitor_status,
+        assert_status,
         msg='Health monitor does not report "up" status after 20s',
         load_balancer_status='running',
         monitor_status='up',
@@ -343,10 +340,8 @@ def test_pool_member_change(server, create_load_balancer_scenario,
     # Get pool member serving the first download
     member_first_name = \
         f'{RESOURCE_NAME_PREFIX}-pool-member-{backend_first.name}'
-    member_first = next(filter(
-        lambda x: x['name'] == member_first_name,
-        load_balancer.pool_members
-    ))
+    member_first = next(x for x in load_balancer.pool_members
+                        if x['name'] == member_first_name)
 
     # Remove/Disable member_first from the pool
     if action == 'remove-add':
@@ -440,7 +435,7 @@ def test_private_frontend(create_server, image, create_load_balancer_scenario,
 
 
 def test_floating_ip(prober, create_load_balancer_scenario, floating_ip):
-    """ A floating IP can be assigned to a load balancer and used to receive
+    """ A Floating IP can be assigned to a load balancer and used to receive
     client connections.
 
     """
@@ -449,20 +444,20 @@ def test_floating_ip(prober, create_load_balancer_scenario, floating_ip):
     load_balancer, listener, pool, backends, private_network = \
         create_load_balancer_scenario(num_backends=1)
 
-    # Assign floating IP to load balancer
+    # Assign Floating IP to load balancer
     floating_ip.assign(load_balancer=load_balancer)
 
-    # Assert load balancer is reachable on the floating IP after at most 20s
+    # Assert load balancer is reachable on the Floating IP after at most 20s
     retry_for(seconds=20).or_fail(
         prober.http_get,
-        msg='Load balancer not reachable on floating IP after 20s.',
+        msg='Load balancer not reachable on Floating IP after 20s.',
         url=construct_http_url(floating_ip.address),
     )
 
 
 def test_floating_ip_reassign(prober, create_load_balancer_scenario,
                               floating_ipv4, server):
-    """ Test if a floating IP can be reassigned from a server to a load
+    """ Test if a Floating IP can be reassigned from a server to a load
     balancer, to another load balancer and back to a server.
 
     """
@@ -477,7 +472,7 @@ def test_floating_ip_reassign(prober, create_load_balancer_scenario,
                     [{'name': 'lb1', 'num_backends': 1},
                      {'name': 'lb2', 'num_backends': 1}])
 
-    # Assign floating IP to the server
+    # Assign Floating IP to the server
     floating_ipv4.assign(server=server)
 
     # Configure the Floating IP on the server
@@ -486,11 +481,11 @@ def test_floating_ip_reassign(prober, create_load_balancer_scenario,
     # Check if the Floating IP is reachable (wait up to 15 seconds)
     prober.ping(floating_ipv4, count=1, tries=15)
 
-    # Assign floating IP to the first load balancer
+    # Assign Floating IP to the first load balancer
     floating_ipv4.assign(load_balancer=load_balancer1)
 
     # Check if backend1 (via load_balancer1) receives requests on the
-    # floating IP
+    # Floating IP
     retry_for(seconds=20).or_fail(
         check_content,
         msg='Floating IP not working within 20s',
@@ -498,11 +493,11 @@ def test_floating_ip_reassign(prober, create_load_balancer_scenario,
         content=backend1.name,
     )
 
-    # Assign floating IP to the second load balancer
+    # Assign Floating IP to the second load balancer
     floating_ipv4.assign(load_balancer=load_balancer2)
 
     # Check if backend2 (via load_balancer2) receives requests on the
-    # floating IP
+    # Floating IP
     retry_for(seconds=20).or_fail(
         check_content,
         msg='Floating IP not working within 20s',
@@ -510,7 +505,7 @@ def test_floating_ip_reassign(prober, create_load_balancer_scenario,
         content=backend1.name,
     )
 
-    # Assign floating IP back to the server
+    # Assign Floating IP back to the server
     floating_ipv4.assign(server=server)
 
     # Check if the Floating IP is reachable (wait up to 15 seconds)

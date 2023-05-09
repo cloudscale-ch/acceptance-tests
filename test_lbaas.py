@@ -73,8 +73,8 @@ def test_multi_listener(prober, create_load_balancer_scenario):
     load_balancer.add_listener('listener-81', pool, 81)
 
     # Assert the LB works on port 80
-    assert (prober.http_get(f'http://{load_balancer.vip(4)}/hostname')
-            == backend.name)
+    assert prober.http_get(f'http://{load_balancer.vip(4)}/hostname') \
+        == backend.name
 
     # Assert backend is also reachable on port 81 (try for 30s as it might not
     # be ready yet)
@@ -120,8 +120,8 @@ def test_multi_listener_multi_pool(prober, create_server, image,
     load_balancer.add_listener('listener-81', pool2, 81)
 
     # Assert backend1 is reachable on port 80 (must already be ready)
-    assert (prober.http_get(f'http://{load_balancer.vip(4)}/hostname')
-            == backend1.name)
+    assert prober.http_get(f'http://{load_balancer.vip(4)}/hostname') \
+        == backend1.name
 
     # Assert backend2 is reachable on port 81 (try for 20s as it might not be
     # ready yet)

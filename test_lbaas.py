@@ -28,11 +28,11 @@ def test_simple(prober, create_load_balancer_scenario):
 
     # Test if the load balancer works on IPv4
     content = load_balancer.get_url(prober, addr_family=4)
-    assert 'Backend server running on ' in content
+    assert 'Backend server running on' in content
 
     # Test if the load balancer works on IPv6
     content = load_balancer.get_url(prober, addr_family=6)
-    assert 'Backend server running on ' in content
+    assert 'Backend server running on' in content
 
 
 def test_end_to_end(prober, create_load_balancer_scenario):

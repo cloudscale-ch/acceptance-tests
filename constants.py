@@ -19,7 +19,10 @@ if not os.environ.get('CLOUDSCALE_API_TOKEN'):
 #
 # See RUNNER_ID below.
 API_TOKEN = os.environ['CLOUDSCALE_API_TOKEN']
+
+# The last slash is significant in certain places, so always strip it
 API_URL = os.environ.get('CLOUDSCALE_API_URL', 'https://api.cloudscale.ch/v1')
+API_URL = API_URL.rstrip('/')
 
 # One external ping target per IP version, that is assumed to be online
 PUBLIC_PING_TARGETS = {

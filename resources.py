@@ -1128,7 +1128,7 @@ class LoadBalancer(CloudscaleResource):
                      protocol='tcp'):
 
         if name is None:
-            name=f'port-{protocol_port}'
+            name = f'port-{protocol_port}'
 
         self.listeners.append(self.api.post(
             'load-balancers/listeners',

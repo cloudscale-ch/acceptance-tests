@@ -22,12 +22,10 @@ from resources import Network
 from resources import Server
 from resources import ServerGroup
 from resources import Volume
-from util import build_http_url
 from util import global_run_id
 from util import in_parallel
 from util import is_matching_slug
 from util import is_present_in_zone
-from util import retry_for
 from util import setup_lbaas_backend
 from util import wait_for_load_balancer_ready
 from xdist import is_xdist_master
@@ -742,7 +740,6 @@ def create_load_balancer_scenario(request, function_api, zone, prober, image,
                 health_monitor_http_config=None,
                 prober=prober,
                 ):
-
 
         if port is None:
             port = 443 if ssl else 80

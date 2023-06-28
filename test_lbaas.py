@@ -146,7 +146,7 @@ def test_multiple_listeners_multiple_pools(
     load_balancer.add_pool_member(pool2, backend2, private_network2)
 
     # Add an additional listener on Port 81 for the second pool
-    load_balancer.add_listener('listener-81', pool2, 81)
+    load_balancer.add_listener(pool2, 81, name='listener-81')
 
     # Assert backend1 is reachable on port 80 (must already be ready)
     assert prober.http_get(f'http://{load_balancer.vip(4)}/hostname') \
@@ -440,7 +440,7 @@ def test_pool_member_change(server, create_load_balancer_scenario,
 
     # Add the backend back to the pool
     if action == 'remove-add':
-        load_balancer.add_pool_member(pool, member_first, private_network)
+        load_balancer.add_pool_member(pool, backend_first, private_network)
     elif action == 'disable-enable':
         load_balancer.toggle_pool_member(pool, member_first, enabled=True)
 

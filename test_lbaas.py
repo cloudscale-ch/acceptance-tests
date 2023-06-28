@@ -9,33 +9,41 @@ You can create, modify and delete TCP load balancers.
 import pytest
 
 from time import sleep
-from util import construct_http_url
+from util import build_http_url
 from util import get_backends_for_request
 from util import in_parallel
 from util import RESOURCE_NAME_PREFIX
 from util import retry_for
-from util import setup_lbaas_backend
 from util import setup_lbaas_http_test_server
 from util import start_persistent_download
+from util import unique
 
 
-def test_simple(prober, create_load_balancer_scenario):
+def test_simple_tcp_load_balancer(prober, create_load_balancer_scenario):
     """ Create a simple TCP load balancer with one backend. """
 
     # Create a load balancer setup with one backend on a private network
     load_balancer, listener, pool, backends, private_network = \
-        create_load_balancer_scenario(num_backends=1)
+        create_load_balancer_scenario(
+            num_backends=1,
+            algorithm='round_robin',
+            port=80,
+            pool_protocol='tcp',
+            ssl=False,
+            health_monitor_type=None,
+            allowed_cidrs=None,
+        )
 
     # Test if the load balancer works on IPv4
-    content = load_balancer.get_url(prober, addr_family=4)
+    content = prober.http_get(load_balancer.build_url(addr_family=4))
     assert 'Backend server running on' in content
 
     # Test if the load balancer works on IPv6
-    content = load_balancer.get_url(prober, addr_family=6)
+    content = prober.http_get(load_balancer.build_url(addr_family=6))
     assert 'Backend server running on' in content
 
 
-def test_end_to_end(prober, create_load_balancer_scenario):
+def test_load_balancer_end_to_end(prober, create_load_balancer_scenario):
     """ Multi backend load balancer end-to-end test scenario.
 
     * Load balancer on a public network with multiple backend servers on a
@@ -46,31 +54,47 @@ def test_end_to_end(prober, create_load_balancer_scenario):
 
     # Create a load balancer setup with two backends on a private network
     load_balancer, listener, pool, backends, private_network = \
-        create_load_balancer_scenario()
+        create_load_balancer_scenario(
+            num_backends=2,
+            algorithm='round_robin',
+            port=80,
+            pool_protocol='tcp',
+            ssl=False,
+            health_monitor_type=None,
+            allowed_cidrs=None,
+        )
 
     # Issue 10 requests on IPv4 and IPv6 to the load balancer
     for i in range(10):
-        content = load_balancer.get_url(prober, addr_family=4)
+        content = prober.http_get(load_balancer.build_url(addr_family=4))
         assert 'Backend server running on' in content
 
-        content = load_balancer.get_url(prober, addr_family=6)
+        content = prober.http_get(load_balancer.build_url(addr_family=6))
         assert 'Backend server running on' in content
 
     # Assert logs on both backend servers show they received traffic
-    assert set(backends) == set(get_backends_for_request(backends))
+    assert unique(backends) == unique(get_backends_for_request(backends))
 
 
-def test_multi_listener(prober, create_load_balancer_scenario):
+def test_multiple_listeners(prober, create_load_balancer_scenario):
     """ Two load balancer listeners connected to the same pool.
 
     """
 
     # Create a load balancer setup with one backend on a private network
     load_balancer, listener1, pool, (backend, ), private_network = \
-        create_load_balancer_scenario(num_backends=1)
+        create_load_balancer_scenario(
+            num_backends=1,
+            algorithm='round_robin',
+            port=80,
+            pool_protocol='tcp',
+            ssl=False,
+            health_monitor_type=None,
+            allowed_cidrs=None,
+    )
 
     # Add an additional listener on Port 81
-    load_balancer.add_listener('listener-81', pool, 81)
+    load_balancer.add_listener(pool, 81, name='listener-81')
 
     # Assert the LB works on port 80
     assert prober.http_get(f'http://{load_balancer.vip(4)}/hostname') \
@@ -87,34 +111,39 @@ def test_multi_listener(prober, create_load_balancer_scenario):
     )
 
 
-def test_multi_listener_multi_pool(prober, create_server, image,
-                                   create_private_network,
-                                   create_load_balancer_scenario):
+def test_multiple_listeners_multiple_pools(
+        prober, create_backend_server, image,
+        create_private_network,
+        create_load_balancer_scenario,
+):
     """ Two listeners connected to their own pool of member servers each.
 
     """
 
     # Create a load balancer setup with one backends on a private network
     load_balancer, listener1, pool1, (backend1, ), private_network1 = \
-        create_load_balancer_scenario(num_backends=1)
-
-    # Create an additonal backend server
-    backend2 = create_server(
-        name='backend2',
-        image=image,
-        use_public_network=False,
-        use_private_network=True,
-        jump_host=prober,
+        create_load_balancer_scenario(
+            num_backends=1,
+            algorithm='round_robin',
+            port=80,
+            pool_protocol='tcp',
+            ssl=False,
+            health_monitor_type=None,
+            allowed_cidrs=None,
     )
-
-    # Create a second pool
-    pool2 = load_balancer.add_pool(f'lb-pool-2', 'round_robin', 'tcp')
 
     # Create an additional backend network
     private_network2 = create_private_network(auto_create_ipv4_subnet=True)
 
-    # Create an additional backend server for the second pool
-    setup_lbaas_backend(backend2, load_balancer, pool2, private_network2)
+    # Create an additonal backend server
+    backend2 = create_backend_server(
+        name='backend2',
+        private_network=private_network2,
+    )
+
+    # Create a second pool and add the additional backend to it
+    pool2 = load_balancer.add_pool(f'lb-pool-2', 'round_robin', 'tcp')
+    load_balancer.add_pool_member(pool2, backend2, private_network2)
 
     # Add an additional listener on Port 81 for the second pool
     load_balancer.add_listener('listener-81', pool2, 81)
@@ -134,7 +163,9 @@ def test_multi_listener_multi_pool(prober, create_server, image,
     )
 
 
-def test_algo_round_robin(prober, create_load_balancer_scenario):
+def test_balancing_algorithm_round_robin(
+        prober, create_load_balancer_scenario,
+):
     """ The round_robin balancing algorithm schedules connections in turn among
     pool members.
 
@@ -142,24 +173,35 @@ def test_algo_round_robin(prober, create_load_balancer_scenario):
     # Create a load balancer setup with 3 backends on a private network
     num_backends = 3
     load_balancer, listener, pool, backends, private_network = \
-        create_load_balancer_scenario(num_backends=num_backends)
+        create_load_balancer_scenario(
+            num_backends=num_backends,
+            algorithm='round_robin',
+            port=80,
+            pool_protocol='tcp',
+            ssl=False,
+            health_monitor_type=None,
+            allowed_cidrs=None,
+        )
 
     # Issue a request to each backend to get the round robin order
-    backend_order = [load_balancer.get_url(prober, url='/hostname')
+    backend_order = [prober.http_get(load_balancer.build_url(url='/hostname'))
                      for i in range(num_backends)]
 
     # Assert all backends got a request
-    assert len(set(backend_order)) == num_backends
+    assert len(unique(backend_order)) == num_backends
 
     # Issue 10 requests to each backend and verify round robin distribution
     for n in range(10 * num_backends):
         # Assert the correct backend received the request
-        backend_hit = load_balancer.get_url(prober, url='/hostname')
-        assert backend_hit == backend_order[n % num_backends]
+        hit_backend_name = prober.http_get(
+            load_balancer.build_url(url='/hostname')
+        )
+        assert hit_backend_name == backend_order[n % num_backends]
 
 
-def test_algo_source_ip(prober, create_load_balancer_scenario, create_server,
-                        image):
+def test_balancing_algorithm_source_ip(
+        prober, create_load_balancer_scenario, create_server, image,
+):
     """ The source_ip balancing algorithm always schedules connections from the
     same source to the same pool member.
 
@@ -173,6 +215,11 @@ def test_algo_source_ip(prober, create_load_balancer_scenario, create_server,
         create_load_balancer_scenario(
             num_backends=4,
             algorithm='source_ip',
+            port=80,
+            pool_protocol='tcp',
+            ssl=False,
+            health_monitor_type=None,
+            allowed_cidrs=None,
         )
 
     # Create 4 client VMs
@@ -188,19 +235,22 @@ def test_algo_source_ip(prober, create_load_balancer_scenario, create_server,
     backend_per_client = {}
     for client in clients:
         # Issue the first request from this client to the LB
-        backend_per_client[client.name] = load_balancer.get_url(
-            client,
-            url='/hostname',
+        backend_per_client[client.name] = client.http_get(
+            load_balancer.build_url(url='/hostname'),
         )
 
     # Issue 10 requests and verify the correct backend receives the request
     for n in range(10):
         for client in clients:
-            backend_hit = load_balancer.get_url(client, url='/hostname')
-            assert backend_per_client[client.name] == backend_hit
+            hit_backend_name = client.http_get(
+                load_balancer.build_url(url='/hostname')
+            )
+            assert backend_per_client[client.name] == hit_backend_name
 
 
-def test_algo_least_connections(server, create_load_balancer_scenario):
+def test_balancing_algorithm_least_connections(
+        server, create_load_balancer_scenario,
+):
     """ The least_connections balancing algorithm schedules connections to the
     backend with the least amount of active connections.
 
@@ -218,6 +268,11 @@ def test_algo_least_connections(server, create_load_balancer_scenario):
         create_load_balancer_scenario(
             num_backends=2,
             algorithm='least_connections',
+            port=80,
+            pool_protocol='tcp',
+            ssl=False,
+            health_monitor_type=None,
+            allowed_cidrs=None,
         )
 
     # start a persistent endless download of random data to "block" one backend
@@ -227,15 +282,18 @@ def test_algo_least_connections(server, create_load_balancer_scenario):
     # Verify requests go to the other backend as it has less active
     # connections
     for i in range(10):
-        backend_hit = load_balancer.get_url(prober, url='/hostname')
+        hit_backend_name = prober.http_get(
+            load_balancer.build_url(url='/hostname')
+        )
 
-        assert backend_hit != blocked_backend.name
+        assert hit_backend_name != blocked_backend.name
 
 
 @pytest.mark.parametrize('health_monitor_type',
                          ['ping', 'tcp', 'http', 'https', 'tls-hello'])
-def test_health_monitors(prober, create_load_balancer_scenario,
-                         health_monitor_type):
+def test_backend_health_monitors(
+        prober, create_load_balancer_scenario, health_monitor_type,
+):
     """ Different health monitoring methods can be used to verify pool member
     availability:
 
@@ -262,6 +320,10 @@ def test_health_monitors(prober, create_load_balancer_scenario,
     load_balancer, listener, pool, (backend, ), private_network = \
         create_load_balancer_scenario(
             num_backends=1,
+            algorithm='least_connections',
+            port=80,
+            pool_protocol='tcp',
+            allowed_cidrs=None,
             health_monitor_type=health_monitor_type,
             health_monitor_http_config=health_monitor_http_config.get(
                 health_monitor_type),
@@ -324,6 +386,12 @@ def test_pool_member_change(server, create_load_balancer_scenario,
     load_balancer, listener, pool, backends, private_network = \
         create_load_balancer_scenario(
             num_backends=2,
+            algorithm='round_robin',
+            port=80,
+            pool_protocol='tcp',
+            ssl=False,
+            health_monitor_type=None,
+            allowed_cidrs=None,
         )
 
     # download an endless file to create "persistent" connections
@@ -372,12 +440,7 @@ def test_pool_member_change(server, create_load_balancer_scenario,
 
     # Add the backend back to the pool
     if action == 'remove-add':
-        load_balancer.add_pool_member(
-            pool, member_first["name"],
-            member_first["protocol_port"],
-            member_first["address"],
-            member_first["subnet"]["uuid"],
-        )
+        load_balancer.add_pool_member(pool, member_first, private_network)
     elif action == 'disable-enable':
         load_balancer.toggle_pool_member(pool, member_first, enabled=True)
 
@@ -398,8 +461,9 @@ def test_pool_member_change(server, create_load_balancer_scenario,
         'systemctl --user is-active wget-second') == 'active'
 
 
-def test_private_frontend(create_server, image, create_load_balancer_scenario,
-                          private_network):
+def test_private_load_balancer_frontend(
+        create_server, image, create_load_balancer_scenario, private_network,
+):
     """ A load balancer can use a private network as it's frontend (VIP)
     network to receive connections.
 
@@ -428,6 +492,11 @@ def test_private_frontend(create_server, image, create_load_balancer_scenario,
             algorithm='least_connections',
             frontend_subnet=frontend_subnet,
             prober=prober,
+            port=80,
+            pool_protocol='tcp',
+            ssl=False,
+            health_monitor_type=None,
+            allowed_cidrs=None,
     )
 
     # Assert the backend is reachable from the prober over the load balancer
@@ -442,7 +511,15 @@ def test_floating_ip(prober, create_load_balancer_scenario, floating_ip):
 
     # Create a load balancer setup with one backend on a private network
     load_balancer, listener, pool, backends, private_network = \
-        create_load_balancer_scenario(num_backends=1)
+        create_load_balancer_scenario(
+            num_backends=1,
+            algorithm='round_robin',
+            port=80,
+            pool_protocol='tcp',
+            ssl=False,
+            health_monitor_type=None,
+            allowed_cidrs=None,
+        )
 
     # Assign Floating IP to load balancer
     floating_ip.assign(load_balancer=load_balancer)
@@ -451,7 +528,7 @@ def test_floating_ip(prober, create_load_balancer_scenario, floating_ip):
     retry_for(seconds=20).or_fail(
         prober.http_get,
         msg='Load balancer not reachable on Floating IP after 20s.',
-        url=construct_http_url(floating_ip.address),
+        url=build_http_url(floating_ip.address),
     )
 
 
@@ -469,8 +546,24 @@ def test_floating_ip_reassign(prober, create_load_balancer_scenario,
     ((load_balancer1, listener1, pool1, (backend1, ), private_network1),
      (load_balancer2, listener1, pool2, (backend2, ), private_network2)) = \
         in_parallel(create_load_balancer_scenario,
-                    [{'name': 'lb1', 'num_backends': 1},
-                     {'name': 'lb2', 'num_backends': 1}])
+                    [{'name': 'lb1',
+                      'num_backends': 1,
+                      'algorithm': 'round_robin',
+                      'port': 80,
+                      'pool_protocol': 'tcp',
+                      'ssl': False,
+                      'health_monitor_type': None,
+                      'allowed_cidrs': None,
+                      },
+                     {'name': 'lb2',
+                      'num_backends': 1,
+                      'algorithm': 'round_robin',
+                      'port': 80,
+                      'pool_protocol': 'tcp',
+                      'ssl': False,
+                      'health_monitor_type': None,
+                      'allowed_cidrs': None,
+                      }])
 
     # Assign Floating IP to the server
     floating_ipv4.assign(server=server)
@@ -512,7 +605,7 @@ def test_floating_ip_reassign(prober, create_load_balancer_scenario,
     prober.ping(floating_ipv4, count=1, tries=15)
 
 
-def test_allowed_cidr(prober, create_load_balancer_scenario):
+def test_frontend_allowed_cidr(prober, create_load_balancer_scenario):
     """ Frontend connection source IPs can be restricted by CIDRs. This works
     for IPv4 and IPv6. The access restrictions can be updated on existing
     load balancers.
@@ -524,6 +617,11 @@ def test_allowed_cidr(prober, create_load_balancer_scenario):
     load_balancer, listener, pool, (backend, ), private_network = \
         create_load_balancer_scenario(
             num_backends=1,
+            algorithm='round_robin',
+            port=80,
+            pool_protocol='tcp',
+            ssl=False,
+            health_monitor_type=None,
             allowed_cidrs=[
                 f'{prober.ip("public", 4)}/32',
                 f'{prober.ip("public", 6)}/128',
@@ -594,7 +692,12 @@ def test_proxy_protocol(prober, create_load_balancer_scenario, proxy_protocol):
     load_balancer, listener, pool, (backend, ), private_network = \
         create_load_balancer_scenario(
             num_backends=1,
-            pool_protocol=proxy_protocol
+            algorithm='round_robin',
+            port=80,
+            pool_protocol=proxy_protocol,
+            ssl=False,
+            health_monitor_type=None,
+            allowed_cidrs=None,
     )
 
     # Assert the PROXY protocol header gets logged for IPv4
@@ -604,7 +707,7 @@ def test_proxy_protocol(prober, create_load_balancer_scenario, proxy_protocol):
         'proxyv2': f'PROXY V2 header received: PROXY '
                    f'TCP4 {prober.ip("public", 4)} {load_balancer.vip(4)}'
     }
-    load_balancer.get_url(prober, addr_family=4)
+    prober.http_get(load_balancer.build_url(addr_family=4))
     logs = backend.output_of('journalctl --user-unit lbaas-http-test-server')
     assert expected_log_line[proxy_protocol] in logs
 
@@ -615,6 +718,6 @@ def test_proxy_protocol(prober, create_load_balancer_scenario, proxy_protocol):
         'proxyv2': f'PROXY V2 header received: PROXY '
                    f'TCP6 {prober.ip("public", 6)} {load_balancer.vip(6)}'
     }
-    load_balancer.get_url(prober, addr_family=6)
+    prober.http_get(load_balancer.build_url(addr_family=6))
     logs = backend.output_of('journalctl --user-unit lbaas-http-test-server')
     assert expected_log_line[proxy_protocol] in logs

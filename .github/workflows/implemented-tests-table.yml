@@ -26,4 +26,4 @@ jobs:
         run: git diff -- README.md
 
       - name: Verify README.md did not change
-        run: git status --short -- README.md | grep --invert-match '^ M'
+        run: "! git status --short -- README.md | grep '^ M'"

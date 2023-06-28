@@ -1,0 +1,29 @@
+name: Verify implemented tests table
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  implemented-tests-table:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Python environment
+        uses: actions/setup-python@v2
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Regenerate tests table
+        run: CLOUDSCALE_API_TOKEN=XXX invoke implemented-tests-table
+
+      - name: Show changes in README.md
+        run: git diff -- README.md
+
+      - name: Verify README.md did not change
+        run: git status --short -- README.md | grep --invert-match '^ M'

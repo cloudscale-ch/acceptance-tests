@@ -175,7 +175,26 @@ def implemented_tests_table(c):
             # Only show the category once per group
             cat = None
 
-    print(tabulate(rows, headers, tablefmt="github"))
+    with open('README.md', 'r') as f:
+        readme = f.read()
+
+    test_list_section = False
+    with open('README.md', 'w') as f:
+        for line in readme.splitlines(keepends=True):
+
+            # While not in the test list section, write out lines
+            if not test_list_section:
+                f.write(line)
+
+            # Start of the test list section, write out the test list
+            if line.startswith('## Implemented Tests'):
+                test_list_section = True
+                f.write(f'\n{tabulate(rows, headers, tablefmt="github")}\n\n')
+
+            # Next section, end of test list section
+            elif test_list_section and line.startswith('##'):
+                test_list_section = False
+                f.write(line)
 
 
 def format_event_attribute(event, key, value):

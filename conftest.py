@@ -22,13 +22,14 @@ from resources import Network
 from resources import Server
 from resources import ServerGroup
 from resources import Volume
-from util import construct_http_url
+from util import build_http_url
 from util import global_run_id
 from util import in_parallel
 from util import is_matching_slug
 from util import is_present_in_zone
 from util import retry_for
 from util import setup_lbaas_backend
+from util import wait_for_load_balancer_ready
 from xdist import is_xdist_master
 from xdist import is_xdist_worker
 
@@ -670,7 +671,12 @@ def upload_custom_image(request, session_api, zone):
 def create_load_balancer(request, function_api, zone):
     """ Factory to create a load balancer. """
 
-    def factory(name='load-balancer', vip_addresses=None):
+    def factory(name='load-balancer', frontend_subnet=None):
+
+        vip_addresses = (
+            [{'subnet': frontend_subnet.uuid}] if frontend_subnet else None
+        )
+
         lb = LoadBalancer(
             request,
             function_api,
@@ -685,8 +691,32 @@ def create_load_balancer(request, function_api, zone):
 
 
 @pytest.fixture(scope='function')
+def create_backend_server(prober, create_server, image):
+
+    def factory(private_network, name='backend', ssl=False):
+
+        backend = create_server(
+            name=name,
+            image=image,
+            use_public_network=False,
+            use_private_network=True,
+            jump_host=prober,
+        )
+
+        setup_lbaas_backend(
+            backend,
+            private_network,
+            ssl,
+        )
+
+        return backend
+
+    return factory
+
+
+@pytest.fixture(scope='function')
 def create_load_balancer_scenario(request, function_api, zone, prober, image,
-                                  create_load_balancer, create_server,
+                                  create_load_balancer, create_backend_server,
                                   create_private_network):
     """ Factory to create a load balancer scenario setup.
 
@@ -700,22 +730,19 @@ def create_load_balancer_scenario(request, function_api, zone, prober, image,
 
     """
 
-    def factory(num_backends=2,
-                algorithm='round_robin',
-                port=None,
-                health_monitor_type=None,
-                health_monitor_http_config=None,
-                ssl=False,
-                frontend_subnet=None,
+    def factory(num_backends,
+                algorithm,
+                port,
+                health_monitor_type,
+                ssl,
+                allowed_cidrs,
+                pool_protocol,
                 name='lb',
+                frontend_subnet=None,
+                health_monitor_http_config=None,
                 prober=prober,
-                allowed_cidrs=None,
-                pool_protocol='tcp',
                 ):
 
-        vip_addresses = (
-            [{'subnet': frontend_subnet.uuid}] if frontend_subnet else None
-        )
 
         if port is None:
             port = 443 if ssl else 80
@@ -723,17 +750,19 @@ def create_load_balancer_scenario(request, function_api, zone, prober, image,
         # Create load balancer
         load_balancer = create_load_balancer(
             name=name,
-            vip_addresses=vip_addresses,
+            frontend_subnet=frontend_subnet,
         )
 
+        # Create a private network with a subnet and attach it to the backend
+        # servers and start a simple webserver on the backend
+        private_network = create_private_network(auto_create_ipv4_subnet=True)
+
         # Create backend servers
-        backends = in_parallel(create_server, (
+        backends = in_parallel(create_backend_server, (
             {
                 'name': f'backend{i + 1}',
-                'image': image,
-                'use_public_network': False,
-                'use_private_network': True,
-                'jump_host': prober,
+                'private_network': private_network,
+                'ssl': ssl,
             }
             for i in range(num_backends)
         ))
@@ -743,25 +772,15 @@ def create_load_balancer_scenario(request, function_api, zone, prober, image,
 
         # Create a backend pool
         pool = load_balancer.add_pool(f'{name}-pool', algorithm, pool_protocol)
-
-        # Create a private network with a subnet and attach it to the backend
-        # servers and start a simple webserver on the backend
-        private_network = create_private_network(auto_create_ipv4_subnet=True)
         for backend in backends:
-            setup_lbaas_backend(
-                backend,
-                load_balancer,
-                pool,
-                private_network,
-                ssl,
-            )
+            load_balancer.add_pool_member(pool, backend, private_network)
 
         # Create a listener on the load balancer
         listener = load_balancer.add_listener(
-            f'{name}-port-{port}',
             pool,
             port,
             allowed_cidrs,
+            name=f'{name}-port-{port}',
         )
 
         # Create a health monitor
@@ -769,15 +788,7 @@ def create_load_balancer_scenario(request, function_api, zone, prober, image,
             load_balancer.add_health_monitor(pool, health_monitor_type,
                                              health_monitor_http_config)
 
-        # Wait for LB to become operational
-        # Note: This only ensures 1 backend is active, we assume all backends
-        # become active at the same time.
-        retry_for(seconds=90).or_fail(
-            prober.http_get,
-            msg='Load balancer was not operational within 90s.',
-            url=construct_http_url(load_balancer.vip(4), port=port, ssl=ssl),
-            insecure=ssl,
-        )
+        wait_for_load_balancer_ready(load_balancer, prober, port, ssl)
 
         return load_balancer, listener, pool, backends, private_network
 

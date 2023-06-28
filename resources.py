@@ -14,7 +14,7 @@ from ipaddress import ip_interface
 from ipaddress import ip_network
 from pathlib import Path
 from testinfra.host import Host
-from util import construct_http_url
+from util import build_http_url
 from util import FaultTolerantParamikoBackend
 from util import generate_server_name
 from util import host_connect_factory
@@ -1079,7 +1079,7 @@ class LoadBalancer(CloudscaleResource):
         self.info = self.api.post('load-balancers', json=self.spec).json()
 
     @with_trigger('load-balancer.add-pool')
-    def add_pool(self, name, algorithm, protocol):
+    def add_pool(self, name, algorithm, protocol='tcp'):
         self.pools.append(self.api.post(
             'load-balancers/pools',
             json={
@@ -1091,17 +1091,19 @@ class LoadBalancer(CloudscaleResource):
         return self.pools[-1]
 
     @with_trigger('load-balancer.add-pool-member')
-    def add_pool_member(self, pool, name, protocol_port, address, subnet,
-                        monitor_port=None):
+    def add_pool_member(self, pool, backend, backend_network):
+
+        private_iface = backend.ip_address_config('private', 4,
+                                                  backend_network.uuid)
+
         self.pool_members.append(self.api.post(
             f'load-balancers/pools/{pool["uuid"]}/members',
             json={
                 'name': f'{RESOURCE_NAME_PREFIX}-pool-member-'
-                        f'{name}',
-                'protocol_port': protocol_port,
-                'monitor_port': monitor_port,
-                'address': address,
-                'subnet': subnet,
+                        f'{backend.name}',
+                'protocol_port': 8000,
+                'address': private_iface['address'],
+                'subnet': private_iface['subnet']['uuid'],
             }).json())
         return self.pool_members[-1]
 
@@ -1122,8 +1124,12 @@ class LoadBalancer(CloudscaleResource):
         )
 
     @with_trigger('load-balancer.add-listener')
-    def add_listener(self, name, pool, protocol_port, allowed_cidrs=None,
+    def add_listener(self, pool, protocol_port, allowed_cidrs=None, name=None,
                      protocol='tcp'):
+
+        if name is None:
+            name=f'port-{protocol_port}'
+
         self.listeners.append(self.api.post(
             'load-balancers/listeners',
             json={
@@ -1153,16 +1159,13 @@ class LoadBalancer(CloudscaleResource):
             }).json())
         return self.health_monitors[-1]
 
-    def get_url(self, prober, url='/', addr_family=4, port=None, ssl=False):
-        """ Request an URL from a load balancer port """
-
-        return prober.http_get(
-            construct_http_url(self.vip(addr_family), url, port, ssl)
-        )
+    def build_url(self, url='/', addr_family=4, port=None, ssl=False):
+        """ Build a URL to fetch content from a load balancer """
+        return build_http_url(self.vip(addr_family), url, port, ssl)
 
     def verify_backend(self, prober, backend, count=1, port=None):
         """ Verify the next count requests go to the given backend server. """
 
         for i in range(count):
-            assert (self.get_url(prober, url='/hostname', port=port)
+            assert (prober.http_get(self.build_url(url='/hostname', port=port))
                     == backend.name)

@@ -580,7 +580,7 @@ def is_public(address):
     return address.is_global or address in ip_network('100.64.0.0/10')
 
 
-def construct_http_url(ip, path='/', port=None, ssl=False):
+def build_http_url(ip, path='/', port=None, ssl=False):
     """ Construct a HTTP URL for a server reachable on an IP address. """
 
     method = 'https' if ssl else 'http'
@@ -608,7 +608,7 @@ def start_persistent_download(prober, load_balancer, backends, name='wget'):
         --output-document /dev/null
         --connect-timeout 5
         --tries 1
-        {construct_http_url(load_balancer.vip(4), f"/endless/{uuid}")}
+        {build_http_url(load_balancer.vip(4), f"/endless/{uuid}")}
     '''))
 
     def check_backends():
@@ -674,12 +674,11 @@ def setup_lbaas_http_test_server(backend, ssl=False):
     '''))
 
 
-def setup_lbaas_backend(backend, load_balancer, pool, backend_network,
-                        ssl=False):
+def setup_lbaas_backend(backend, backend_network, ssl=False):
     """ Configures a server to work as an LBaaS test HTTP backend.
 
-    The server is plugged into the backend network, a simple HTTP test server
-    is started added and the server is added to the load balancer pool.
+    The server is plugged into the backend network and a simple HTTP test
+    server is started.
 
     Optionally SSL is setup for the HTTP test server.
     """
@@ -693,9 +692,28 @@ def setup_lbaas_backend(backend, load_balancer, pool, backend_network,
     # Setup the HTTP test server
     setup_lbaas_http_test_server(backend, ssl)
 
-    # Add the backend server to the pool
-    private_iface = backend.ip_address_config('private', 4,
-                                              backend_network.uuid)
-    return load_balancer.add_pool_member(pool, backend.name, 8000,
-                                         private_iface['address'],
-                                         private_iface['subnet']['uuid'])
+
+def wait_for_load_balancer_ready(load_balancer, prober, port=None, ssl=False):
+    """ Waits for the load balancer to become operational. """
+
+    if port is None:
+        port = 443 if ssl else 80
+
+    # Wait for the load balancer to be running.
+    load_balancer.wait_for('running', seconds=120)
+
+    # Wait for LB to become operational
+    # Note: This only ensures 1 backend is active, we assume all backends
+    # become active at the same time.
+    retry_for(seconds=90).or_fail(
+        prober.http_get,
+        msg='Load balancer was not operational within 90s.',
+        url=build_http_url(load_balancer.vip(4), port=port, ssl=ssl),
+        insecure=ssl,
+    )
+
+
+def unique(iterable):
+    """ Returns a set of unique values from an interable object (eg. list) """
+
+    return set(iterable)

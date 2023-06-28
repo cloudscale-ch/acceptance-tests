@@ -32,25 +32,26 @@ These tests are run regularly against our public infrastructure as well as our i
 |                     | [test_private_network_without_dhcp](./test_private_network.py#L201)              | default  |
 |                     | [test_private_network_mtu](./test_private_network.py#L244)                       | default  |
 |                     | [test_private_network_only_on_all_images](./test_private_network.py#L302)        | all      |
-| **Public Network**  | [test_public_ip_address_on_all_images](./test_public_network.py#L20)             | all      |
-|                     | [test_public_network_connectivity_on_all_images](./test_public_network.py#L49)   | all      |
-|                     | [test_public_network_mtu](./test_public_network.py#L68)                          | default  |
-|                     | [test_public_network_port_security](./test_public_network.py#L95)                | default  |
-|                     | [test_public_network_ipv4_only_on_all_images](./test_public_network.py#L140)     | all      |
-|                     | [test_reverse_ptr_record_of_server](./test_public_network.py#L161)               | default  |
-|                     | [test_reverse_ptr_record_of_floating_ip](./test_public_network.py#L185)          | default  |
-| **Server**          | [test_change_flavor_from_flex_to_flex](./test_server.py#L39)                     | default  |
-|                     | [test_change_flavor_from_flex_to_plus](./test_server.py#L61)                     | default  |
-|                     | [test_change_flavor_from_plus_to_flex](./test_server.py#L84)                     | default  |
-|                     | [test_change_flavor_from_plus_to_plus](./test_server.py#L107)                    | default  |
-|                     | [test_hostname](./test_server.py#L130)                                           | default  |
-|                     | [test_rename_server](./test_server.py#L148)                                      | default  |
-|                     | [test_reboot_server](./test_server.py#L172)                                      | default  |
-|                     | [test_stop_and_start_server](./test_server.py#L200)                              | default  |
-|                     | [test_rename_server_group](./test_server.py#L229)                                | default  |
-|                     | [test_no_cpu_steal_on_plus_flavor](./test_server.py#L239)                        | default  |
-|                     | [test_random_number_generator](./test_server.py#L272)                            | default  |
-|                     | [test_metadata_on_all_images](./test_server.py#L287)                             | all      |
+|                     | [test_private_network_attach_later](./test_private_network.py#L324)              | default  |
+| **Public Network**  | [test_public_ip_address_on_all_images](./test_public_network.py#L22)             | all      |
+|                     | [test_public_network_connectivity_on_all_images](./test_public_network.py#L51)   | all      |
+|                     | [test_public_network_mtu](./test_public_network.py#L70)                          | default  |
+|                     | [test_public_network_port_security](./test_public_network.py#L97)                | default  |
+|                     | [test_public_network_ipv4_only_on_all_images](./test_public_network.py#L181)     | all      |
+|                     | [test_reverse_ptr_record_of_server](./test_public_network.py#L202)               | default  |
+|                     | [test_reverse_ptr_record_of_floating_ip](./test_public_network.py#L226)          | default  |
+| **Server**          | [test_change_flavor_from_flex_to_flex](./test_server.py#L18)                     | default  |
+|                     | [test_change_flavor_from_flex_to_plus](./test_server.py#L40)                     | default  |
+|                     | [test_change_flavor_from_plus_to_flex](./test_server.py#L62)                     | default  |
+|                     | [test_change_flavor_from_plus_to_plus](./test_server.py#L84)                     | default  |
+|                     | [test_hostname](./test_server.py#L106)                                           | default  |
+|                     | [test_rename_server](./test_server.py#L124)                                      | default  |
+|                     | [test_reboot_server](./test_server.py#L148)                                      | default  |
+|                     | [test_stop_and_start_server](./test_server.py#L176)                              | default  |
+|                     | [test_rename_server_group](./test_server.py#L205)                                | default  |
+|                     | [test_no_cpu_steal_on_plus_flavor](./test_server.py#L215)                        | default  |
+|                     | [test_random_number_generator](./test_server.py#L247)                            | default  |
+|                     | [test_metadata_on_all_images](./test_server.py#L262)                             | all      |
 | **Volume**          | [test_attach_and_detach_volume_on_all_images](./test_volume.py#L22)              | all      |
 |                     | [test_expand_volume_online_on_all_images](./test_volume.py#L57)                  | all      |
 |                     | [test_expand_filesystem_online_on_common_images](./test_volume.py#L82)           | common   |

@@ -289,7 +289,8 @@ class Server(CloudscaleResource):
             # the IPv6 global unicast address we ping a designated IPv6
             # address. A DNS lookup is used for it, to not hard-code the
             # address. The DNS lookup is usually done via IPv4 on the host.
-            self.ping(self.resolve('api.cloudscale.ch', version=6)[0])
+            ipv6_address = self.resolve('api.cloudscale.ch', version=6)[0]
+            self.ping(ipv6_address, tries=2, wait=5)
 
     @with_trigger('server.wait-for-cloud-init')
     def wait_for_cloud_init(self, host, timeout):

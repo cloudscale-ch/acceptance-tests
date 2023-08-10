@@ -693,7 +693,25 @@ def setup_lbaas_backend(backend, backend_network, ssl=False):
     setup_lbaas_http_test_server(backend, ssl)
 
 
-def wait_for_load_balancer_ready(load_balancer, prober, port=None, ssl=False):
+def wait_for_url_ready(url, prober, content=None, timeout=90):
+    """ Waits for an URL to return an OK status code or specific content. """
+
+    def verify_content():
+        # Note: insecure=False means don't verify certificates. The
+        # certificates on the LB test setup won't validate.
+        output = prober.http_get(url, insecure=True)
+        if content:
+            assert content == output
+
+    # Wait for LB to become operational
+    retry_for(seconds=timeout).or_fail(
+        verify_content,
+        msg=f'URL {url} was not ready within {timeout}s.',
+    )
+
+
+def wait_for_load_balancer_ready(load_balancer, prober, port=None, ssl=False,
+                                 timeout=90, content=None, ip_version=4):
     """ Waits for the load balancer to become operational. """
 
     if port is None:
@@ -702,14 +720,12 @@ def wait_for_load_balancer_ready(load_balancer, prober, port=None, ssl=False):
     # Wait for the load balancer to be running.
     load_balancer.wait_for('running', seconds=120)
 
-    # Wait for LB to become operational
-    # Note: This only ensures 1 backend is active, we assume all backends
-    # become active at the same time.
-    retry_for(seconds=90).or_fail(
-        prober.http_get,
-        msg='Load balancer was not operational within 90s.',
-        url=build_http_url(load_balancer.vip(4), port=port, ssl=ssl),
-        insecure=ssl,
+    # Wait for the LB to serve content
+    wait_for_url_ready(
+        build_http_url(load_balancer.vip(ip_version), port=port, ssl=ssl),
+        prober,
+        content,
+        timeout,
     )
 
 

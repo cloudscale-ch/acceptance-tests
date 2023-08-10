@@ -17,6 +17,8 @@ from util import retry_for
 from util import setup_lbaas_http_test_server
 from util import start_persistent_download
 from util import unique
+from util import wait_for_load_balancer_ready
+from util import wait_for_url_ready
 
 
 def test_simple_tcp_load_balancer(prober, create_load_balancer_scenario):
@@ -93,22 +95,19 @@ def test_multiple_listeners(prober, create_load_balancer_scenario):
             allowed_cidrs=None,
     )
 
-    # Add an additional listener on Port 81
+    # Add an additional listener on port 81
     load_balancer.add_listener(pool, 81, name='listener-81')
 
-    # Assert the LB works on port 80
+    # Assert the LB still works on port 80
     assert prober.http_get(f'http://{load_balancer.vip(4)}/hostname') \
         == backend.name
 
-    # Assert backend is also reachable on port 81 (try for 30s as it might not
-    # be ready yet)
-    retry_for(seconds=30).or_fail(
-        load_balancer.verify_backend,
-        msg='Additional listener not reachable within 30s.',
-        prober=prober,
-        backend=backend,
-        port=81,
-    )
+    # Wait for the new listener on port 81 to be operational
+    wait_for_load_balancer_ready(load_balancer, prober, port=81, timeout=30)
+
+    # Assert backend is also reachable on port 81
+    assert prober.http_get(f'http://{load_balancer.vip(4)}:81/hostname') \
+        == backend.name
 
 
 def test_multiple_listeners_multiple_pools(
@@ -132,6 +131,10 @@ def test_multiple_listeners_multiple_pools(
             allowed_cidrs=None,
     )
 
+    # Assert backend1 is reachable on port 80
+    assert prober.http_get(f'http://{load_balancer.vip(4)}/hostname') \
+        == backend1.name
+
     # Create an additional backend network
     private_network2 = create_private_network(auto_create_ipv4_subnet=True)
 
@@ -148,19 +151,16 @@ def test_multiple_listeners_multiple_pools(
     # Add an additional listener on Port 81 for the second pool
     load_balancer.add_listener(pool2, 81, name='listener-81')
 
-    # Assert backend1 is reachable on port 80 (must already be ready)
+    # Assert backend1 is still reachable on port 80
     assert prober.http_get(f'http://{load_balancer.vip(4)}/hostname') \
         == backend1.name
 
-    # Assert backend2 is reachable on port 81 (try for 20s as it might not be
-    # ready yet)
-    retry_for(seconds=30).or_fail(
-        load_balancer.verify_backend,
-        msg='Additional backend and/or listener not reachable within 30s.',
-        prober=prober,
-        backend=backend2,
-        port=81,
-    )
+    # Wait for the new backend to be operational
+    wait_for_load_balancer_ready(load_balancer, prober, port=81, timeout=30)
+
+    # Assert backend2 is reachable on port 81
+    assert prober.http_get(f'http://{load_balancer.vip(4)}:81/hostname') \
+        == backend2.name
 
 
 def test_balancing_algorithm_round_robin(
@@ -510,7 +510,7 @@ def test_floating_ip(prober, create_load_balancer_scenario, floating_ip):
     """
 
     # Create a load balancer setup with one backend on a private network
-    load_balancer, listener, pool, backends, private_network = \
+    load_balancer, listener, pool, (backend, ), private_network = \
         create_load_balancer_scenario(
             num_backends=1,
             algorithm='round_robin',
@@ -519,17 +519,22 @@ def test_floating_ip(prober, create_load_balancer_scenario, floating_ip):
             ssl=False,
             health_monitor_type=None,
             allowed_cidrs=None,
-        )
+    )
 
     # Assign Floating IP to load balancer
     floating_ip.assign(load_balancer=load_balancer)
 
     # Assert load balancer is reachable on the Floating IP after at most 20s
-    retry_for(seconds=20).or_fail(
-        prober.http_get,
-        msg='Load balancer not reachable on Floating IP after 20s.',
-        url=build_http_url(floating_ip.address),
+    wait_for_url_ready(
+        build_http_url(floating_ip.address),
+        prober,
+        timeout=20,
     )
+
+    # Assert the load balancer is serving content on the Floating IP
+    assert prober.http_get(
+        url=build_http_url(floating_ip.address, path='/hostname')
+    ) == backend.name
 
 
 def test_floating_ip_reassign(prober, create_load_balancer_scenario,
@@ -577,26 +582,34 @@ def test_floating_ip_reassign(prober, create_load_balancer_scenario,
     # Assign Floating IP to the first load balancer
     floating_ipv4.assign(load_balancer=load_balancer1)
 
+    # Wait for up to 20s for the Floating IP to become ready
+    wait_for_url_ready(
+        f'http://{floating_ipv4.address}/hostname',
+        prober,
+        content=backend1.name,
+        timeout=20,
+    )
+
     # Check if backend1 (via load_balancer1) receives requests on the
     # Floating IP
-    retry_for(seconds=20).or_fail(
-        check_content,
-        msg='Floating IP not working within 20s',
-        url=f'http://{floating_ipv4.address}/hostname',
-        content=backend1.name,
-    )
+    assert prober.http_get(f'http://{floating_ipv4.address}/hostname') \
+        == backend1.name
 
     # Assign Floating IP to the second load balancer
     floating_ipv4.assign(load_balancer=load_balancer2)
 
+    # Wait for up to 20s for the Floating IP to become ready
+    wait_for_url_ready(
+        f'http://{floating_ipv4.address}/hostname',
+        prober,
+        content=backend2.name,
+        timeout=20,
+    )
+
     # Check if backend2 (via load_balancer2) receives requests on the
     # Floating IP
-    retry_for(seconds=20).or_fail(
-        check_content,
-        msg='Floating IP not working within 20s',
-        url=f'http://{floating_ipv4.address}/hostname',
-        content=backend1.name,
-    )
+    assert prober.http_get(f'http://{floating_ipv4.address}/hostname') \
+        == backend2.name
 
     # Assign Floating IP back to the server
     floating_ipv4.assign(server=server)

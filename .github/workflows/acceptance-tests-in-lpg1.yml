@@ -40,7 +40,7 @@ jobs:
         env:
           CLOUDSCALE_API_TOKEN: ${{ secrets.CLOUDSCALE_API_TOKEN }}
         run: |
-          pytest . --zone=lpg1 -n 4 -v --color=yes --reruns=1
+          pytest . --zone=lpg1 -n 2 -v --color=yes --reruns=1
 
       - name: Upload events log
         if: always()

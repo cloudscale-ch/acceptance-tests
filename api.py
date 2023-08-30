@@ -113,6 +113,7 @@ class API(requests.Session):
             return self.get(f'{path}?tag:runner={RUNNER_ID}').json()
 
         yield from resources('/servers')
+        yield from resources('/load-balancers')
         yield from resources('/volumes')
         yield from resources('/floating-ips')
         yield from resources('/subnets')

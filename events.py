@@ -160,7 +160,11 @@ def track_in_event_log(event, include=None):
         for k, v in include.items():
 
             if isinstance(v, str):
-                yield k, dot_access(v, attributes)
+                try:
+                    yield k, dot_access(v, attributes)
+                except AttributeError:
+                    # Ignore attribute if it does not exist
+                    pass
 
             elif callable(v):
                 yield k, v(SimpleNamespace(**attributes))
@@ -233,12 +237,12 @@ track_in_event_log('server.create.after', include={
     'private_ipv6': lambda a: str(a.args.self.ip('private', 6, False)),
 })
 
-track_in_event_log('server.wait.before', include={
+track_in_event_log('resource.wait.before', include={
     **RESOURCE_ID,
     'status': 'args.status',
 })
 
-track_in_event_log('server.wait.after', include={
+track_in_event_log('resource.wait.after', include={
     **RESOURCE_ID,
     **RESULT,
     'status': 'args.status',
@@ -363,6 +367,8 @@ track_in_event_log('floating-ip.assign.after', include={
     'network': lambda a: str(a.args.self.network),
     'server_name': 'args.server.name',
     'server_uuid': 'args.server.uuid',
+    'load_balancer_name': 'args.load_balancer.name',
+    'load_balancer_uuid': 'args.load_balancer.uuid',
     **RESULT,
 })
 

@@ -12,7 +12,9 @@ from hashlib import blake2b
 from ipaddress import ip_address
 from ipaddress import ip_interface
 from ipaddress import ip_network
+from pathlib import Path
 from testinfra.host import Host
+from util import build_http_url
 from util import FaultTolerantParamikoBackend
 from util import generate_server_name
 from util import host_connect_factory
@@ -76,6 +78,34 @@ class CloudscaleResource:
     def refresh(self):
         self.info = self.api.get(self.href).json()
 
+    def wait_for(self, status, seconds=60):
+        timeout = datetime.now() + timedelta(seconds=seconds)
+        self.wait_until(status, timeout=timeout)
+
+    @with_trigger('resource.wait')
+    def wait_until(self, status, timeout=None):
+
+        timeout = timeout or self.default_timeout()
+        seconds = (timeout - datetime.now()).total_seconds()
+
+        negate = status.startswith('!')
+        status = negate and status[1:] or status
+
+        while datetime.now() < timeout:
+            self.refresh()
+
+            if negate:
+                if self.status != status:
+                    break
+            else:
+                if self.status == status:
+                    break
+
+            # Don't check this too eagerly, to keep log output less noisy
+            time.sleep(2.5)
+        else:
+            raise Timeout(f"Waited more than {seconds}s for '{status}' status")
+
     def delete(self):
         if not self.created:
             return
@@ -116,7 +146,7 @@ class Server(CloudscaleResource):
 
         # get a unique server name, unless explicitly disabled
         if auto_name:
-            name = generate_server_name(request, spec.get('name'))
+            name = generate_server_name(request, spec.get('name', ''))
         else:
             name = spec['name']
 
@@ -155,34 +185,6 @@ class Server(CloudscaleResource):
         self.wait_for('running', seconds=SERVER_START_TIMEOUT)
         self.connect()
 
-    def wait_for(self, status, seconds=60):
-        timeout = datetime.now() + timedelta(seconds=seconds)
-        self.wait_until(status, timeout=timeout)
-
-    @with_trigger('server.wait')
-    def wait_until(self, status, timeout=None):
-
-        timeout = timeout or self.default_timeout()
-        seconds = (timeout - datetime.now()).total_seconds()
-
-        negate = status.startswith('!')
-        status = negate and status[1:] or status
-
-        while datetime.now() < timeout:
-            self.refresh()
-
-            if negate:
-                if self.status != status:
-                    break
-            else:
-                if self.status == status:
-                    break
-
-            # Don't check this too eagerly, to keep log output less noisy
-            time.sleep(2.5)
-        else:
-            raise Timeout(f"Waited more than {seconds}s for '{status}' status")
-
     def wait_for_http_content(self, host, content, seconds, port=80):
         """ Reads the http response of the host until the expected
         content is returned.
@@ -213,14 +215,31 @@ class Server(CloudscaleResource):
 
         raise Timeout(f"Waited more than {seconds}s for '{content}' at {url}")
 
-    def http_get(self, url):
+    def http_get(self, url, insecure=False):
         """ Runs curl or wget (whatever is available) and returns the body. """
 
         if self.run('command -v curl').exit_status == 0:
-            return self.output_of(f'curl -sL {url}')
+            insecure = '--insecure' if insecure else ''
+            return self.output_of(oneliner(f'''
+                curl
+                --silent
+                --location
+                --connect-timeout 5
+                {insecure}
+                {url}
+            '''))
 
         if self.run('command -v wget').exit_status == 0:
-            return self.output_of(f'wget -qO- {url}')
+            insecure = '--no-check-certificate' if insecure else ''
+            return self.output_of(oneliner(f'''
+                wget
+                --quiet
+                --output-document -
+                --connect-timeout 5
+                --tries 1
+                {insecure}
+                {url}
+            '''))
 
         raise NotImplementedError("No suitable HTTP client found")
 
@@ -587,8 +606,11 @@ class Server(CloudscaleResource):
 
         return self.host.interface(self.nth_interface_name(1))
 
-    def ip_address_config(self, iface_type, ip_version):
+    def ip_address_config(self, iface_type, ip_version, network=None):
         for interface in self.interfaces:
+            if network and not interface['network']['uuid'] == network:
+                continue
+
             for address in interface['addresses']:
                 if interface['type'] != iface_type:
                     continue
@@ -601,13 +623,13 @@ class Server(CloudscaleResource):
         # No address of this type found
         return None
 
-    def ip(self, iface_type, ip_version, fail_if_missing=True):
+    def ip(self, iface_type, ip_version, fail_if_missing=True, network=None):
         """ Get IP address from the given interface type and version.
 
         If `fail_if_missing` is set to False, None may be returned.
 
         """
-        config = self.ip_address_config(iface_type, ip_version)
+        config = self.ip_address_config(iface_type, ip_version, network)
 
         if config:
             return ip_address(config['address'])
@@ -762,6 +784,13 @@ class Server(CloudscaleResource):
 
         raise NotImplementedError(f"Unsupported filesystem: {fs}")
 
+    def put_file(self, filename, remote_filename=None):
+        if not remote_filename:
+            remote_filename = Path(filename).name
+
+        sftp = self.host.backend.client.open_sftp()
+        sftp.put(filename, remote_filename)
+
 
 class FloatingIP(CloudscaleResource):
 
@@ -791,8 +820,25 @@ class FloatingIP(CloudscaleResource):
         self.info = self.api.post('/floating-ips', json=self.spec).json()
 
     @with_trigger('floating-ip.assign')
-    def assign(self, server):
-        self.api.patch(self.href, json={'server': server.uuid})
+    def assign(self, server=None, load_balancer=None):
+        assert not (server and load_balancer), \
+            "Can't assign a Floating IP to a server and a load balancer at " \
+            "the same time"
+
+        if server:
+            json = {'server': server.uuid}
+        elif load_balancer:
+            json = {'load_balancer': load_balancer.uuid}
+        else:
+            raise AssertionError(
+                'The cloudscale.ch API does not support unassiging '
+                'a Floating IP.'
+            )
+
+        self.api.patch(
+            self.href,
+            json=json,
+        )
         self.refresh()
 
     @with_trigger('floating-ip.update')
@@ -974,3 +1020,153 @@ class CustomImage(CloudscaleResource):
             return
 
         raise Timeout(f"Waited more than {seconds}s for {self.url}")
+
+
+class LoadBalancer(CloudscaleResource):
+
+    def __init__(self, request, api, name, zone, flavor='lb-standard',
+                 vip_addresses=None):
+
+        super().__init__(request, api)
+        self.spec = {
+            'name': generate_server_name(request, name),
+            'zone': zone,
+            'flavor': flavor,
+        }
+        if vip_addresses:
+            self.spec['vip_addresses'] = vip_addresses
+
+        # Initialize lists of subobjects
+        self.listeners = []
+        self.pools = []
+        self.pool_members = []
+        self.health_monitors = []
+
+    def refresh(self):
+        super().refresh()
+
+        # Update all "subresources"
+        for kind in ('listeners', 'pools', 'pool_members', 'health_monitors'):
+            setattr(self, kind, [self.api.get(i['href']).json()
+                                 for i in getattr(self, kind)])
+
+    def vip_address_config(self, ip_version):
+        for address in self.vip_addresses:
+            if address['version'] != ip_version:
+                continue
+
+            return address
+
+        # No address of this type found
+        return None
+
+    def vip(self, ip_version, fail_if_missing=True):
+        """ Get VIP address from the given IP version.
+
+        If `fail_if_missing` is set to False, None may be returned.
+
+        """
+        config = self.vip_address_config(ip_version)
+
+        if config:
+            return ip_address(config['address'])
+        elif fail_if_missing:
+            raise AssertionError(f"No IPv{ip_version} address.")
+        else:
+            return None
+
+    @with_trigger('load-balancer.create')
+    def create(self):
+        self.info = self.api.post('load-balancers', json=self.spec).json()
+
+    @with_trigger('load-balancer.add-pool')
+    def add_pool(self, name, algorithm, protocol='tcp'):
+        self.pools.append(self.api.post(
+            'load-balancers/pools',
+            json={
+                'name': f'{RESOURCE_NAME_PREFIX}-pool-{name}',
+                'load_balancer': self.uuid,
+                'algorithm': algorithm,
+                'protocol': protocol,
+            }).json())
+        return self.pools[-1]
+
+    @with_trigger('load-balancer.add-pool-member')
+    def add_pool_member(self, pool, backend, backend_network):
+
+        private_iface = backend.ip_address_config('private', 4,
+                                                  backend_network.uuid)
+
+        self.pool_members.append(self.api.post(
+            f'load-balancers/pools/{pool["uuid"]}/members',
+            json={
+                'name': f'{RESOURCE_NAME_PREFIX}-pool-member-'
+                        f'{backend.name}',
+                'protocol_port': 8000,
+                'address': private_iface['address'],
+                'subnet': private_iface['subnet']['uuid'],
+            }).json())
+        return self.pool_members[-1]
+
+    @with_trigger('load-balancer.remove-pool-member')
+    def remove_pool_member(self, pool, member):
+        self.api.delete(
+            f'load-balancers/pools/{pool["uuid"]}/members/{member["uuid"]}',
+        )
+
+        self.pool_members = list(filter(lambda x: x['uuid'] != member["uuid"],
+                                        self.pool_members))
+
+    @with_trigger('load-balancer.disable-pool-member')
+    def toggle_pool_member(self, pool, member, enabled=True):
+        self.api.patch(
+            f'load-balancers/pools/{pool["uuid"]}/members/{member["uuid"]}',
+            json={'enabled': enabled},
+        )
+
+    @with_trigger('load-balancer.add-listener')
+    def add_listener(self, pool, protocol_port, allowed_cidrs=None, name=None,
+                     protocol='tcp'):
+
+        if name is None:
+            name = f'port-{protocol_port}'
+
+        self.listeners.append(self.api.post(
+            'load-balancers/listeners',
+            json={
+                'name': f'{RESOURCE_NAME_PREFIX}-listener-{name}',
+                'pool': pool['uuid'],
+                'protocol': 'tcp',
+                'protocol_port': protocol_port,
+                'allowed_cidrs': allowed_cidrs or [],
+            }).json())
+        return self.listeners[-1]
+
+    @with_trigger('load-balancer.update-listener')
+    def update_listener(self, listener, **kwargs):
+        self.api.patch(
+            f'load-balancers/listeners/{listener["uuid"]}',
+            json=kwargs,
+        )
+
+    @with_trigger('load-balancer.add-health-monitor')
+    def add_health_monitor(self, pool, monitor_type, monitor_http_config):
+        self.health_monitors.append(self.api.post(
+            'load-balancers/health-monitors',
+            json={
+                'pool': pool['uuid'],
+                'type': monitor_type,
+                'http': monitor_http_config,
+            }).json())
+        return self.health_monitors[-1]
+
+    def build_url(self, url='/', addr_family=4, port=None, ssl=False):
+        """ Build a URL to fetch content from a load balancer """
+        return build_http_url(self.vip(addr_family), url, port, ssl)
+
+    def verify_backend(self, prober, backend, count=1, port=None):
+        """ Verify the next count requests go to the given backend server. """
+
+        for i in range(count):
+            assert (prober.http_get(self.build_url(url='/hostname', port=port))
+                    == backend.name)

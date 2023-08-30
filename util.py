@@ -20,7 +20,7 @@ from dns import reversename
 from dns.resolver import NXDOMAIN
 from dns.resolver import Resolver
 from errors import Timeout
-from functools import lru_cache
+from functools import cached_property, lru_cache
 from hashlib import blake2b
 from ipaddress import ip_address
 from ipaddress import ip_network
@@ -31,7 +31,6 @@ from paramiko.ssh_exception import SSHException
 from pathlib import Path
 from psutil import Process
 from testinfra.backend.paramiko import ParamikoBackend
-from testinfra.utils import cached_property as testinfra_cached_property
 from types import SimpleNamespace
 from uuid import uuid4
 from warnings import warn
@@ -239,7 +238,7 @@ class FaultTolerantParamikoBackend(ParamikoBackend):
         self.client_factory = client_factory
         self.retries = 3
 
-    @testinfra_cached_property
+    @cached_property
     def client(self):
         return self.client_factory()
 

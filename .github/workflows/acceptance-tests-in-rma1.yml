@@ -13,7 +13,7 @@ on:
 
   # Scheduled tests (UTC)
   schedule:
-    - cron: '0 16 * * *'
+    - cron: '0 15 * * *'
 
   # Manual execution through the UI by collaborators
   workflow_dispatch:

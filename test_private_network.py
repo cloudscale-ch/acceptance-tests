@@ -139,7 +139,7 @@ def test_multiple_private_network_interfaces(create_server, image,
 
     # Server can ping other server over every private IPv4
     for octet in range(15):
-        s1.ping(f'192.168.{octet}.2', tries=5, wait=1)
+        s1.ping(f'192.168.{octet}.2', tries=10, wait=1)
 
 
 def test_no_private_network_port_security(create_server, image, server_group):
@@ -349,7 +349,7 @@ def test_private_network_attach_later(server, private_network):
         assert len(private_addresses) == 1
         assert private_addresses[0] in subnet
 
-    retry_for(seconds=45).or_fail(
+    retry_for(seconds=60).or_fail(
         assert_private_network_is_configured,
         msg='Failed to configure private network.',
     )

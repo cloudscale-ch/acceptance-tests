@@ -27,6 +27,10 @@ from util import SERVER_START_TIMEOUT
 from uuid import uuid4
 
 
+# Indicates that a resource not created (intentionally)
+NOT_CREATED = object()
+
+
 class CloudscaleResource:
     """ A cloudscale.ch resource like a Server or a Floating IP. """
 
@@ -61,7 +65,9 @@ class CloudscaleResource:
         """
         def create_resource_factory(**parameters):
             resource = cls(**{**defaults, **parameters})
-            resource.create()
+
+            if resource.create() is NOT_CREATED:
+                return None
 
             return resource
 
@@ -117,13 +123,19 @@ class CloudscaleResource:
 class Server(CloudscaleResource):
     """ Provides servers which are cleaned up after the tests ran through. """
 
-    def __init__(self, request, api, jump_host=None, auto_name=True, **spec):
+    def __init__(self, request, api, jump_host=None, auto_name=True,
+                 precondition=None, **spec):
+
         super().__init__(request, api)
 
         # the username to use as a fallback for custom images
         self.username = spec.pop('username', request.config.option.username)
 
         self.jump_host = jump_host
+
+        # The precondition can be used to throw away a server right after it
+        # has been launched, but before a connection is made.
+        self.precondition = precondition
 
         self.spec = self.default_spec()
         self.spec.update(spec)
@@ -183,6 +195,11 @@ class Server(CloudscaleResource):
     def create(self):
         self.info = self.api.post('/servers', json=self.spec).json()
         self.wait_for('running', seconds=SERVER_START_TIMEOUT)
+
+        if self.precondition and not self.precondition(self):
+            self.delete()
+            return NOT_CREATED
+
         self.connect()
 
     def wait_for_http_content(self, host, content, seconds, port=80):

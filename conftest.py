@@ -12,7 +12,6 @@ from constants import RUNNER_ID
 from datetime import datetime
 from datetime import timedelta
 from events import trigger
-from itertools import combinations
 from paramiko import ECDSAKey
 from pathlib import Path
 from resources import CustomImage
@@ -451,42 +450,39 @@ def two_servers_in_same_subnet(create_server, prober, image):
 
     """
 
+    server_args = {
+        'image': image['slug'],
+        'use_public_network': True,
+        'use_private_network': True,
+        'jump_host': prober,
+    }
+
+    # Create the first server
+    one = create_server(name='s1', **server_args)
+
     def network_id(server):
         targets = (i for i in server.interfaces if i['type'] == 'public')
         return next(i['network']['uuid'] for i in targets)
 
-    def two_in_same_subnet(servers):
-        for a, b in combinations(servers, 2):
-            if network_id(a) == network_id(b):
-                return a, b
+    def precondition(server):
+        return network_id(one) == network_id(server)
 
-        return None, None
+    # Try to find a second server. Use a precondition to abort server creation
+    # early, if we have the wrong network.
+    for _ in range(10):
+        two = create_server(
+            name='s2',
+            precondition=precondition,
+            **server_args
+        )
 
-    for _ in range(4):
+        if two is not None:
+            break
 
-        server_args = {
-            'image': image['slug'],
-            'use_public_network': True,
-            'use_private_network': True,
-            'jump_host': prober,
-        }
-        servers = in_parallel(create_server, instances=(
-            {'name': 's1', **server_args},
-            {'name': 's2', **server_args},
-            {'name': 's3', **server_args},
-            {'name': 's4', **server_args},
-        ))
+    if two is None or network_id(one) != network_id(two):
+        raise RuntimeError("Failed to find two servers in the same subnet")
 
-        a, b = two_in_same_subnet(servers)
-
-        for s in servers:
-            if s is not a and s is not b:
-                s.delete()
-
-        if a and b:
-            return a, b
-
-    raise RuntimeError("Failed to find two servers in the same subnet")
+    return one, two
 
 
 @pytest.fixture(scope='function')

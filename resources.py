@@ -27,7 +27,7 @@ from util import SERVER_START_TIMEOUT
 from uuid import uuid4
 
 
-# Indicates that a resource not created (intentionally)
+# Indicates that a resource was not created (intentionally)
 NOT_CREATED = object()
 
 

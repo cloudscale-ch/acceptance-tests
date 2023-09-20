@@ -102,8 +102,8 @@ def test_public_network_port_security(ip_version, two_servers_in_same_subnet):
     Attention: Due to it's nature this test can cause havoc on the network in
     the absence of effective port security to prevent ARP and ND spoofing!
 
-    This is notoriously unreliable in failing in the absence of port security
-    rules for IPv6. It often succeeds even if it should fail.
+    This test can reliably detect port security issues in IPv4, but it is
+    unreliable when it comes to IPv6, where it can produce false positives.
     """
 
     # We need two servers in the same subnet

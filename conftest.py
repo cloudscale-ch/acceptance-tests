@@ -451,6 +451,13 @@ def two_servers_in_same_subnet(create_server, prober, image):
 
     """
 
+    # How many servers to launch at once. As we add more public subnets,
+    # this number should be increased.
+    parallel = 6
+
+    # How many times to try launching a set of servers
+    tries = 4
+
     def network_id(server):
         targets = (i for i in server.interfaces if i['type'] == 'public')
         return next(i['network']['uuid'] for i in targets)
@@ -462,7 +469,16 @@ def two_servers_in_same_subnet(create_server, prober, image):
 
         return None, None
 
-    for _ in range(4):
+    # Ignore assertion errors during server creation, as we don't want
+    # flakiness to stop us from finding two servers (we will abort if no server
+    # was created, which would indicate a more serious problem).
+    def try_create_server(**args):
+        try:
+            return create_server(**args)
+        except AssertionError:
+            return None
+
+    for _ in range(tries):
 
         server_args = {
             'image': image['slug'],
@@ -470,12 +486,14 @@ def two_servers_in_same_subnet(create_server, prober, image):
             'use_private_network': True,
             'jump_host': prober,
         }
-        servers = in_parallel(create_server, instances=(
-            {'name': 's1', **server_args},
-            {'name': 's2', **server_args},
-            {'name': 's3', **server_args},
-            {'name': 's4', **server_args},
+
+        servers = in_parallel(try_create_server, instances=(
+            {'name': f's{n}', **server_args} for n in range(1, parallel + 1)
         ))
+
+        # Fail of no servers can be created
+        servers = [s for s in servers if s is not None]
+        assert servers
 
         a, b = two_in_same_subnet(servers)
 

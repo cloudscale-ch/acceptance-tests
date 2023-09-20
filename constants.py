@@ -50,7 +50,7 @@ NUMBERS = re.compile(r'[0-9]*\.?[0-9]+')
 SERVER_START_TIMEOUT = 240
 
 # How many resources may be spawned in parallel in a single call
-RESOURCE_CREATION_CONCURRENCY_LIMIT = 4
+RESOURCE_CREATION_CONCURRENCY_LIMIT = 2
 
 # Where events are logged
 EVENTS_PATH = 'events'

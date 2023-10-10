@@ -349,7 +349,7 @@ def test_private_network_attach_later(server, private_network):
         assert len(private_addresses) == 1
         assert private_addresses[0] in subnet
 
-    retry_for(seconds=60).or_fail(
+    retry_for(seconds=30).or_fail(
         assert_private_network_is_configured,
         msg='Failed to configure private network.',
     )

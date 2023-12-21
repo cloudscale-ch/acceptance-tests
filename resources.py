@@ -665,6 +665,23 @@ class Server(CloudscaleResource):
 
         return f'f-{digest}'
 
+    def dhcp_reply(self, interface_name, ip_version, timeout=2.5):
+        """ Starts a DHCP discovery on the interface and returns a reply,
+        without configuring the interface.
+
+        This is used to assert DHCP replies and requires dhclient to be
+        installed.
+
+        """
+        return self.output_of(oneliner(f"""
+            sudo timeout {timeout}s dhclient {interface_name}
+                -{ip_version}
+                -lf /dev/stdout
+                -n -d -q -1
+                --no-pid
+            2>/dev/null || true
+        """))
+
     def configure_floating_ip(self, floating_ip):
         interface = self.interface_name(floating_ip)
 
@@ -974,6 +991,10 @@ class Subnet(CloudscaleResource):
     @with_trigger('subnet.create')
     def create(self):
         self.info = self.api.post('/subnets', json=self.spec).json()
+
+    @with_trigger('subnet.change-dns-servers')
+    def change_dns_servers(self, dns_servers):
+        self.api.patch(self.href, json={'dns_servers': dns_servers})
 
     def delete(self):
         """ Subnets are not explicitly deleted as they are automatically

@@ -434,6 +434,12 @@ track_in_event_log('subnet.create.after', include={
     'dns_servers': 'args.self.dns_servers',
 })
 
+track_in_event_log('subnet.change-dns-servers.after', include={
+    **RESOURCE_ID,
+    **RESULT,
+    'dns_servers': 'args.self.dns_servers',
+})
+
 
 # Keep track of custom images
 track_in_event_log('custom-image.import.after', include={

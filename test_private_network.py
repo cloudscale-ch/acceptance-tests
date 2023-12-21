@@ -27,7 +27,7 @@ def test_private_ip_address_on_all_images(create_server, image):
     retry_for(seconds=5).or_warn(assert_a_private_address, msg=(
         f'{server.name}: No private IP address after 5s'))
 
-    # if this all together takes more than 30 seconds, we count it as a failure
+    # If this all together takes more than 30 seconds, we count it as a failure
     retry_for(seconds=25).or_fail(assert_a_private_address, msg=(
         f'{server.name}: No private IP address after 30s'))
 
@@ -352,4 +352,57 @@ def test_private_network_attach_later(server, private_network):
     retry_for(seconds=30).or_fail(
         assert_private_network_is_configured,
         msg='Failed to configure private network.',
+    )
+
+
+def test_private_network_dhcp_dns_replies(server, private_network):
+    """ Subnets contain a DHCP server, whose DNS server list can be
+    configured by the user.
+
+    """
+
+    # Create a default subnet
+    subnet = private_network.add_subnet('10.1.2.0/24')
+
+    server.update(
+        interfaces=[{"network": "public"},
+                    {"network": private_network.info["uuid"]}]
+    )
+
+    assert server.private_interface.exists
+
+    # No DHCP reply sets a search domain
+    reply = server.dhcp_reply(server.public_interface.name, ip_version=4)
+    assert "domain-search" not in reply
+
+    reply = server.dhcp_reply(server.public_interface.name, ip_version=6)
+    assert "domain-search" not in reply
+
+    reply = server.dhcp_reply(server.private_interface.name, ip_version=4)
+    assert "domain-search" not in reply
+
+    # The DNS server of the private subnet can be changed
+    subnet.change_dns_servers(['10.0.0.8', '10.0.0.9'])
+
+    def assert_custom_dns_servers():
+        reply = server.dhcp_reply(server.private_interface.name, ip_version=4)
+        assert "domain-name-servers 10.0.0.8,10.0.0.9" in reply
+        assert "domain-search" not in reply
+
+    retry_for(seconds=10).or_fail(
+        assert_custom_dns_servers,
+        msg='Failed to configure custom DNS servers.',
+    )
+
+    # We can also use an empty set of DNS servers
+    subnet.change_dns_servers([])
+
+    def assert_no_dns_servers():
+        reply = server.dhcp_reply(server.private_interface.name, ip_version=4)
+        assert "domain-name-servers" not in reply
+        assert "domain-search" not in reply
+
+    retry_for(seconds=10).or_fail(
+        assert_no_dns_servers,
+        msg='Failed to configure an empty set of DNS servers.',
     )

@@ -30,6 +30,18 @@ PUBLIC_PING_TARGETS = {
     6: '2001:4860:4860::8888'
 }
 
+# The default resolvers we push, per zone. Subject to change.
+DEFAULT_RESOLVERS = {
+    'rma1': {
+        4: ('5.102.144.101', '5.102.144.102'),
+        6: ('2a06:c01:f::101', '2a06:c01:f::102'),
+    },
+    'lpg1': {
+        4: ('185.79.232.101', '185.79.232.102'),
+        6: ('2a06:c02:f::101', '2a06:c02:f::102'),
+    },
+}
+
 # Unique id that distinguishes acceptance tests generated resources.
 RUNNER_ID_HASH = blake2b(API_TOKEN.encode("utf-8"), digest_size=8).hexdigest()
 RUNNER_ID = f'at-{RUNNER_ID_HASH}'

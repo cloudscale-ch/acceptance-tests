@@ -7,6 +7,7 @@ You can interconnect your servers securely over private networks:
 
 """
 
+from constants import DEFAULT_RESOLVERS
 from util import in_parallel
 from util import retry_for
 
@@ -371,14 +372,19 @@ def test_private_network_dhcp_dns_replies(server, private_network):
 
     assert server.private_interface.exists
 
-    # No DHCP reply sets a search domain
+    # By default, DHCP sends a set of default resolvers and no search domain
+    resolvers = DEFAULT_RESOLVERS[server.zone['slug']]
+
     reply = server.dhcp_reply(server.public_interface.name, ip_version=4)
+    assert f"domain-name-servers {','.join(resolvers[4])}" in reply
     assert "domain-search" not in reply
 
     reply = server.dhcp_reply(server.public_interface.name, ip_version=6)
+    assert f"dhcp6.name-servers {','.join(resolvers[6])}" in reply
     assert "domain-search" not in reply
 
     reply = server.dhcp_reply(server.private_interface.name, ip_version=4)
+    assert f"domain-name-servers {','.join(resolvers[4])}" in reply
     assert "domain-search" not in reply
 
     # The DNS server of the private subnet can be changed

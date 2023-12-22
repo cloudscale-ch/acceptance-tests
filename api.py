@@ -103,6 +103,9 @@ class API(requests.Session):
 
         return super().request(method, url, *args, **kwargs)
 
+    def resources(self, path):
+        return self.get(f'{path}?tag:runner={RUNNER_ID}').json()
+
     def runner_resources(self):
         """ Returns all resources created by the current API token as part
         of an acceptance test.

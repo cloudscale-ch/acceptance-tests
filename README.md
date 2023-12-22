@@ -20,11 +20,12 @@ These tests are run regularly against our public infrastructure as well as our i
 | **Custom Image**    | [test_custom_image_with_slug](./test_custom_image.py#L11)                        | custom   |
 |                     | [test_custom_image_with_uuid](./test_custom_image.py#L22)                        | custom   |
 |                     | [test_custom_image_with_uefi](./test_custom_image.py#L33)                        | custom   |
-| **Floating IP**     | [test_floating_ip_connectivity](./test_floating_ip.py#L14)                       | default  |
-|                     | [test_multiple_floating_ips](./test_floating_ip.py#L32)                          | default  |
-|                     | [test_floating_ip_stability](./test_floating_ip.py#L54)                          | default  |
-|                     | [test_floating_ip_failover](./test_floating_ip.py#L97)                           | default  |
-|                     | [test_floating_network](./test_floating_ip.py#L140)                              | default  |
+| **Floating IP**     | [test_floating_ip_connectivity](./test_floating_ip.py#L15)                       | default  |
+|                     | [test_multiple_floating_ips](./test_floating_ip.py#L33)                          | default  |
+|                     | [test_floating_ip_stability](./test_floating_ip.py#L55)                          | default  |
+|                     | [test_floating_ip_failover](./test_floating_ip.py#L98)                           | default  |
+|                     | [test_floating_ip_mass_failover](./test_floating_ip.py#L141)                     | default  |
+|                     | [test_floating_network](./test_floating_ip.py#L180)                              | default  |
 | **Load Balancer**   | [test_simple_tcp_load_balancer](./test_load_balancer.py#L24)                     | default  |
 |                     | [test_load_balancer_end_to_end](./test_load_balancer.py#L48)                     | default  |
 |                     | [test_multiple_listeners](./test_load_balancer.py#L81)                           | default  |

@@ -8,6 +8,7 @@ level using the cloudscale.ch cloud.
 
 """
 
+from util import assert_takes_no_longer_than
 from util import in_parallel
 
 
@@ -135,6 +136,45 @@ def test_floating_ip_failover(prober, create_server, server_group,
 
         # Try to get the content within ten seconds
         prober.wait_for_http_content(floating_ip, 's2', seconds=10)
+
+
+def test_floating_ip_mass_failover(prober, create_server, server_group,
+                                   create_floating_ip):
+    """ Floating IP addresses can be re-assigned en masse. """
+
+    # Create two server to assign the Floating IPs
+    s1, s2 = in_parallel(create_server, instances=(
+        {'name': 's1', 'server_groups': [server_group.uuid]},
+        {'name': 's2', 'server_groups': [server_group.uuid]},
+    ))
+
+    # Create, assign, and configure 15 Floating IPs
+    ips = [
+        create_floating_ip(
+            ip_version=4,
+            server=s1.uuid
+        ) for _ in range(15)
+    ]
+
+    for ip in ips:
+        s1.configure_floating_ip(ip)
+        s2.configure_floating_ip(ip)
+
+    assert s1.reachable_via_ip(*ips, timeout=15)
+
+    # Move the Floating IPs to s2
+    with assert_takes_no_longer_than(seconds=30):
+        for ip in ips:
+            ip.assign(s2)
+
+        assert s2.reachable_via_ip(*ips, timeout=15)
+
+    # Move the Floating IPs to s1
+    with assert_takes_no_longer_than(seconds=30):
+        for ip in ips:
+            ip.assign(s1)
+
+        assert s1.reachable_via_ip(*ips, timeout=15)
 
 
 def test_floating_network(prober, server, floating_network):

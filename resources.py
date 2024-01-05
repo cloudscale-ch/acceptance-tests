@@ -18,6 +18,7 @@ from util import build_http_url
 from util import FaultTolerantParamikoBackend
 from util import generate_server_name
 from util import host_connect_factory
+from util import in_parallel
 from util import is_port_online
 from util import is_public
 from util import matches_attributes
@@ -533,6 +534,52 @@ class Server(CloudscaleResource):
         addrs = (a for a in addrs if a)
 
         return tuple(addrs)
+
+    def identify_by_ssh_host_key(self, ip, servers=None):
+        """ Gets the SSH host key of the given address and compares it to the
+        servers found in the API. If there is a match, the server dict is
+        returned.
+
+        """
+        if hasattr(ip, 'address'):
+            address = ip.address
+        else:
+            address = ip
+
+        key = self.output_of(
+            f'ssh-keyscan -t ed25519 {address} | cut -d " " -f 2-3')
+
+        if not key:
+            return None
+
+        for server in (servers or self.api.resources('/servers')):
+            if key in server.get('ssh_host_keys', ()):
+                return server
+
+        return None
+
+    def reachable_via_ip(self, *ips, timeout=None):
+        """ Tries to connect to the given IPs (in parallel) and returns True
+        if all given IPs point to this server.
+
+        Uses SSH host keys to determine the identity of the server.
+
+        """
+        servers = self.api.resources('/servers')
+        until = timeout and time.monotonic() + timeout or None
+
+        while True:
+            identities = in_parallel(
+                lambda ip: self.identify_by_ssh_host_key(ip, servers), ips)
+
+            for server in identities:
+                if self.uuid != server['uuid']:
+                    break
+                else:
+                    return True
+
+            if timeout is None or time.monotonic() > until:
+                return False
 
     def file_path_exists(self, path):
         """ Returns true if the given path exists. """

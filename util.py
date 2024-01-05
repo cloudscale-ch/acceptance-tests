@@ -14,6 +14,7 @@ from constants import RESOURCE_NAME_PREFIX
 from constants import RUNTIME_PATH
 from constants import SERVER_START_TIMEOUT
 from contextlib import closing
+from contextlib import contextmanager
 from contextlib import suppress
 from datetime import datetime, timedelta
 from dns import reversename
@@ -32,6 +33,7 @@ from pathlib import Path
 from psutil import Process
 from testinfra.backend.paramiko import ParamikoBackend
 from types import SimpleNamespace
+from typing import Generator
 from uuid import uuid4
 from warnings import warn
 
@@ -162,12 +164,18 @@ def in_parallel(factory, instances=None, count=None):
 
     Or if the function doesn't take any arguments:
 
-        s1, s2 = in_parallel(some_function, count=3)
+        s1, s2 = in_parallel(some_function, count=2)
 
     """
 
     def create(instance):
-        return factory(**instance)
+        if isinstance(instance, dict):
+            return factory(**instance)
+
+        if isinstance(instance, (list, tuple, Generator)):
+            return factory(*instance)
+
+        return factory(instance)
 
     # Require instances or a count, disallow both together
     assert instances or count
@@ -732,3 +740,15 @@ def unique(iterable):
     """ Returns a set of unique values from an interable object (eg. list) """
 
     return set(iterable)
+
+
+@contextmanager
+def assert_takes_no_longer_than(seconds):
+    """ Asserts that inside of the "with" block takes no longer than the
+    given amount of time.
+
+    """
+    start = time.monotonic()
+    yield
+    took = time.monotonic() - start
+    assert took <= seconds, f"{took}s > {seconds}s"

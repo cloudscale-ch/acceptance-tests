@@ -553,7 +553,7 @@ class Server(CloudscaleResource):
             return None
 
         for server in (servers or self.api.resources('/servers')):
-            if key in server.get('ssh_host_keys', ()):
+            if key in (server.get('ssh_host_keys') or ()):
                 return server
 
         return None

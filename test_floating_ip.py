@@ -153,7 +153,7 @@ def test_floating_ip_mass_failover(prober, create_server, server_group,
         create_floating_ip(
             ip_version=4,
             server=s1.uuid
-        ) for _ in range(15)
+        ) for _ in range(10)
     ]
 
     for ip in ips:

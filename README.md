@@ -178,7 +178,7 @@ invoke pretty-print --file events/<file> --regex outcome=failed
 Or, during test execution, you can follow the log in a separate terminal window while it is being written. This will tail all the event logs that are currently being written. No need to specify a single file.
 
 ```console
-invoke follow
+invoke tail
 ```
 
 ## Cleanup

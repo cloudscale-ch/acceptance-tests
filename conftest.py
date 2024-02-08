@@ -91,6 +91,7 @@ def pytest_addoption(parser):
         action='store',
         default=random.choice(ZONES),
         choices=ZONES,
+        type=str.lower,
         help="Zone to run the tests in (defaults to a random zone)",
     )
 

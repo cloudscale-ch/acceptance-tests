@@ -1,0 +1,15 @@
+# A custom run workflow for testing
+name: Custom Acceptance Test
+
+run-name: Custom Acceptance Test in ${{ inputs.zone }}
+
+on:
+  # Manual execution through the UI by collaborators
+  workflow_dispatch:
+
+jobs:
+  custom-run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4

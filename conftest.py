@@ -308,7 +308,12 @@ def pytest_runtest_logreport(report):
     if report.when == 'setup':
         trigger('test.setup', name=report.nodeid, outcome=report.outcome)
     elif report.when == 'call':
-        trigger('test.call', name=report.nodeid, outcome=report.outcome)
+        trigger(
+            'test.call',
+            name=report.nodeid,
+            outcome=report.outcome,
+            error=report.longreprtext
+        )
     elif report.when == 'teardown':
         trigger('test.teardown', name=report.nodeid, outcome=report.outcome)
     else:

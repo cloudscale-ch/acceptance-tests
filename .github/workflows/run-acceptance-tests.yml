@@ -50,7 +50,7 @@ jobs:
         env:
           CLOUDSCALE_API_TOKEN: ${{ secrets.api_token }}
         run: >
-          pytest "${{ inputs.path || '.' }}"
+          ./pytest "${{ inputs.path || '.' }}"
           --zone="${{ inputs.zone }}"
           -n ${{ inputs.workers }}
           -v

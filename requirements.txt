@@ -8,7 +8,6 @@ paramiko
 psutil
 pytest
 pytest-repeat
-pytest-rerunfailures
 pytest-testinfra
 pytest-xdist
 requests

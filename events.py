@@ -206,7 +206,10 @@ def on_test_teardown(name, outcome):
 
 
 track_in_event_log('test.start')
-track_in_event_log('test.call', include={'outcome': 'outcome'})
+track_in_event_log('test.call', include={
+    'outcome': 'outcome',
+    'error': 'error'
+})
 
 
 # Keep track of API requests

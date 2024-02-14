@@ -1,16 +1,8 @@
+# The dedicated workflow for the whole acceptance test-suite. Only run on
+# schedule or manually, but never with any customization.
 name: Acceptance Tests in LPG1
 
 on:
-  # Tests are only run on a regular schedule, or if they are manually started.
-  #
-  # * Pull requests are disabled because anonymous users could cause resource
-  #   usage in the cloud, causing unintended costs.
-  #
-  # * Changes to the main branch are not tested, as we do that nightly anyway
-  #   and the expectation is that new tests are tested locally, in a more
-  #   explicit and change-specific way.
-  #
-
   # Scheduled tests (UTC)
   schedule:
     - cron: '0 18 * * *'
@@ -20,37 +12,8 @@ on:
 
 jobs:
   acceptance-tests-in-lpg1:
-    runs-on: [self-hosted, lpg1]
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: 3.9
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Run tests
-        env:
-          CLOUDSCALE_API_TOKEN: ${{ secrets.CLOUDSCALE_API_TOKEN }}
-        run: |
-          pytest . --zone=lpg1 -n 2 -v --color=yes --reruns=1
-
-      - name: Upload events log
-        if: always()
-        uses: actions/upload-artifact@v3
-        with:
-          name: events-log
-          path: events
-
-      - name: Cleanup
-        if: always()
-        env:
-          CLOUDSCALE_API_TOKEN: ${{ secrets.CLOUDSCALE_API_TOKEN }}
-        run: invoke cleanup
+    uses: ./.github/workflows/run-acceptance-tests.yml
+    with:
+      zone: lpg1
+    secrets:
+      api_token: ${{ secrets.CLOUDSCALE_API_TOKEN_AT_LPG1 }}

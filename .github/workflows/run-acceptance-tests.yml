@@ -1,0 +1,73 @@
+name: Acceptance Test Run Implementation
+
+on:
+  # This workflow can only be called from other workflows
+  workflow_call:
+    inputs:
+      zone:
+        type: string
+        required: true
+      expression:
+        type: string
+        default: 'test_'
+      path:
+        type: string
+        default: '.'
+      count:
+        type: number
+        default: 1
+      reruns:
+        type: number
+        default: 1
+      workers:
+        type: number
+        default: 2
+    secrets:
+      api_token:
+        required: true
+
+jobs:
+  acceptance-tests:
+    runs-on:
+      - self-hosted
+      - "${{ inputs.zone }}"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.9
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests
+        env:
+          CLOUDSCALE_API_TOKEN: ${{ secrets.api_token }}
+        run: >
+          ./pytest "${{ inputs.path || '.' }}"
+          --zone="${{ inputs.zone }}"
+          -n ${{ inputs.workers }}
+          -v
+          --color=yes
+          --reruns=${{ inputs.reruns }}
+          --count=${{ inputs.count }}
+          -k "${{ inputs.expression || 'test_' }}"
+
+      - name: Upload events log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: events-log
+          path: events
+
+      - name: Cleanup
+        if: always()
+        env:
+          CLOUDSCALE_API_TOKEN: ${{ secrets.api_token }}
+        run: invoke cleanup

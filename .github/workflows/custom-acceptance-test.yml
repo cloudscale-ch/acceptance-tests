@@ -1,15 +1,52 @@
 # A custom run workflow for testing
-name: Custom Acceptance Test
-
 run-name: Custom Acceptance Test in ${{ inputs.zone }}
+
+name: Custom Acceptance Test
 
 on:
   # Manual execution through the UI by collaborators
   workflow_dispatch:
+    inputs:
+      zone:
+        description: "Zone to run tests in"
+        required: true
+        type: choice
+        options:
+          - LPG1
+          - RMA1
+      expression:
+        description: "Filter tests by this expression (py.test -k)"
+        default: "test_"
+        type: string
+      path:
+        description: "Search for tests in this file or directory"
+        default: "."
+        type: string
+      count:
+        description: "Run the tests this many times"
+        default: 1
+        type: number
+      reruns:
+        description: "Rerun failed tests this many times"
+        default: 0
+        type: number
+      workers:
+        description: "Use this many workers"
+        default: 2
+        type: number
 
 jobs:
   custom-run:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    uses: ./.github/workflows/run-acceptance-tests.yml
+    with:
+      zone: '${{ inputs.zone }}'
+      expression: '${{ inputs.expression }}'
+      path: '${{ inputs.path }}'
+      # Yes, fromJSON is how GitHub Actions convert strings to numbers. Not
+      # that these numbers should be strings in the first place, but YAML
+      # templating is hard.
+      count: ${{ fromJSON(inputs.count) }}
+      reruns: ${{ fromJSON(inputs.reruns) }}
+      workers: ${{ fromJSON(inputs.workers) }}
+    secrets:
+      api_token: ${{ secrets.CLOUDSCALE_API_TOKEN_AT_CUSTOM }}

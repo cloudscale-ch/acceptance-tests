@@ -1,0 +1,55 @@
+#!/usr/bin/env python3
+""" Wraps py.test to rerun on failures up to n times.
+
+This is very similar to the pytest-rerunfailures plugin, but has the following
+features that the plugin does not provide:
+
+- Always show the full test output in our output
+- The failed tests are retried at the end of each test run.
+
+Example:
+
+    ./pytest . --reruns=1
+
+Note, this is only meant to be used for our scheduled test suite. You generally
+want to use py.test directly.
+
+"""
+
+import argparse
+import shlex
+import subprocess
+import sys
+
+parser = argparse.ArgumentParser(add_help=False)
+parser.add_argument('--reruns', type=int, default=0)
+
+
+def main(reruns: int, args: list[str]) -> int:
+    result = None
+
+    if reruns < 0 or 10 < reruns:
+        print(f"Invalid reruns: {reruns}, expected 0-10")
+        return 1
+
+    for run in range(1, reruns + 2):
+        if run == 1:
+            # Clear the cache of old rerun failures the first time
+            cmd = ('pytest', *args, '--cache-clear')
+        else:
+            # Only run failures in consecutive calls
+            cmd = ('pytest', *args, '--last-failed')
+
+        print(f"Running run #{run}: {shlex.join(cmd)}", flush=True)
+        result = subprocess.run(cmd, check=False)
+
+        # Abort as soon as a run was successful
+        if result.returncode == 0:
+            break
+
+    return result.returncode if result is not None else 1
+
+
+if __name__ == '__main__':
+    known, args = parser.parse_known_args()
+    sys.exit(main(**vars(known), args=args))

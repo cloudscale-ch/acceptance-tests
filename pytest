@@ -17,6 +17,7 @@ want to use py.test directly.
 """
 
 import argparse
+import os
 import shlex
 import subprocess
 import sys
@@ -41,7 +42,9 @@ def main(reruns: int, args: list[str]) -> int:
             cmd = ('pytest', *args, '--last-failed')
 
         print(f"Running run #{run}: {shlex.join(cmd)}", flush=True)
-        result = subprocess.run(cmd, check=False)
+        result = subprocess.run(cmd, check=False, env={
+            'TEST_RUN': str(run), **os.environ,
+        })
 
         # Abort as soon as a run was successful
         if result.returncode == 0:

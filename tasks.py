@@ -5,6 +5,7 @@ import re
 
 from api import API
 from constants import EVENTS_PATH
+from datetime import date
 from datetime import datetime
 from datetime import timedelta
 from invoke import task
@@ -118,6 +119,83 @@ def cleanup(c):
         limit_to_scope=False,
         limit_to_process=False,
     )
+
+
+@task
+def summary(c):
+    """ Analyzes test last test-run (including reruns) and prints a markdown
+    summary to be used with $GITHUB_STEP_SUMMARY or stdout in general.
+
+    """
+
+    pattern = f'at-{date.today().year}-*.log'
+    results = []
+
+    # Go from newest to oldest, until events with only one run are found. This
+    # way, we get the latest events of run n, then n-1, towards 1.
+    maxrun = 1
+
+    for log in sorted(Path('events').glob(pattern), reverse=True):
+        with log.open('r') as f:
+            for line in f:
+                event = json.loads(line)
+
+                if event.get('event') != 'test.call':
+                    continue
+
+                results.append(event)
+
+        if results and results[-1]['run'] == 1:
+            break
+
+        if results:
+            maxrun = max(maxrun, results[-1]['run'])
+
+    results.sort(key=lambda e: e['time'])
+
+    # Gather statistics
+    successes = sum(
+        1 for r in results
+        if r['outcome'] == 'passed' and r['run'] == 1)
+
+    reruns = [
+        r for r in results
+        if r['outcome'] == 'passed' and r['run'] != 1]
+
+    failures = [
+        r for r in results
+        if r['outcome'] != 'passed' and r['run'] == maxrun]
+
+    print("# Test Run Summary")
+    print("")
+
+    if successes:
+        print(f"✅ {successes} tests passed on the first try.\n")
+
+    if reruns and maxrun == 2:
+        print(f"⚠️ {len(reruns)} passed after a rerun.\n")
+
+    if reruns and maxrun > 2:
+        print(f"⚠️ {len(reruns)} passed after multiple reruns.\n")
+
+    if failures:
+        print(f"⛔️ {len(failures)} did not pass at all.\n")
+
+    if reruns or failures:
+        print("## Failures")
+        print("")
+
+        for failed in (r for r in results if r['error']):
+            print('<details><summary><code>', end='')
+            print(f"{failed['test']}: {failed['short_error']}", end='')
+            print('</code></summary>')
+            print('')
+            print('```python')
+            print(failed['error'])
+            print('```')
+            print('')
+            print('</details>')
+            print('')
 
 
 @task

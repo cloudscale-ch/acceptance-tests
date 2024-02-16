@@ -46,13 +46,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Remove GitHub problem matchers
+        run: >
+          echo "::remove-matcher owner=python::";
+          echo "::remove-matcher owner=checkout-git::"
+
       - name: Run tests
         env:
           CLOUDSCALE_API_TOKEN: ${{ secrets.api_token }}
-        # The ::remove-matcher call ensures that automatic annotations are
-        # not applied to the pytest output. We summarize the output ourselves.
         run: >
-          echo "::remove-matcher owner=python::";
           ./pytest "${{ inputs.path || '.' }}"
           --zone="${{ inputs.zone }}"
           -n ${{ inputs.workers }}

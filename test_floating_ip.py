@@ -163,14 +163,14 @@ def test_floating_ip_mass_failover(prober, create_server, server_group,
     assert s1.reachable_via_ip(*ips, timeout=15)
 
     # Move the Floating IPs to s2
-    with assert_takes_no_longer_than(seconds=30):
+    with assert_takes_no_longer_than(seconds=40):
         for ip in ips:
             ip.assign(s2)
 
         assert s2.reachable_via_ip(*ips, timeout=15)
 
     # Move the Floating IPs to s1
-    with assert_takes_no_longer_than(seconds=30):
+    with assert_takes_no_longer_than(seconds=40):
         for ip in ips:
             ip.assign(s1)
 

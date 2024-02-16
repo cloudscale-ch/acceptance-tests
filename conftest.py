@@ -22,6 +22,7 @@ from resources import Network
 from resources import Server
 from resources import ServerGroup
 from resources import Volume
+from util import extract_short_error
 from util import global_run_id
 from util import in_parallel
 from util import is_matching_slug
@@ -312,7 +313,8 @@ def pytest_runtest_logreport(report):
             'test.call',
             name=report.nodeid,
             outcome=report.outcome,
-            error=report.longreprtext
+            error=report.longreprtext,
+            short_error=extract_short_error(report.longreprtext),
         )
     elif report.when == 'teardown':
         trigger('test.teardown', name=report.nodeid, outcome=report.outcome)

@@ -49,7 +49,10 @@ jobs:
       - name: Run tests
         env:
           CLOUDSCALE_API_TOKEN: ${{ secrets.api_token }}
+        # The ::remove-matcher call ensures that automatic annotations are
+        # not applied to the pytest output. We summarize the output ourselves.
         run: >
+          echo "::remove-matcher owner=python::";
           ./pytest "${{ inputs.path || '.' }}"
           --zone="${{ inputs.zone }}"
           -n ${{ inputs.workers }}
@@ -65,6 +68,12 @@ jobs:
         with:
           name: events-log
           path: events
+
+      - name: Print summary
+        if: always()
+        env:
+          CLOUDSCALE_API_TOKEN: ${{ secrets.api_token }}
+        run: 'invoke summary >> $GITHUB_STEP_SUMMARY'
 
       - name: Cleanup
         if: always()

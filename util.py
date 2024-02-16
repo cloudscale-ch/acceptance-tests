@@ -752,3 +752,28 @@ def assert_takes_no_longer_than(seconds):
     yield
     took = time.monotonic() - start
     assert took <= seconds, f"{took}s > {seconds}s"
+
+
+def extract_short_error(longrepr):
+    """ Takes a longrepr exception report and extracts the most relevant
+    line from it.
+
+    Since the last exception is the first one to have occurred, and the '>'
+    points to the executed line, followed by error lines, we take the first
+    error line after the '>'.
+
+    """
+
+    if not longrepr:
+        return None
+
+    prev = None
+
+    # Start from the bottom since that's nearer
+    for line in reversed(longrepr.splitlines()):
+        if line.startswith('E'):
+            prev = line
+        if line.startswith('>'):
+            break
+
+    return prev[1:].strip()

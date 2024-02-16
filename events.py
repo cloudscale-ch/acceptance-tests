@@ -1,5 +1,6 @@
 import functools
 import json
+import os
 
 from collections import OrderedDict
 from constants import EVENTS_PATH
@@ -116,6 +117,7 @@ def record(event, **attributes):
     record['worker'] = CTX.worker_id
     record['test'] = CTX.current_test
     record['event'] = event
+    record['run'] = int(os.environ.get('TEST_RUN', '1'))
 
     for key in sorted(attributes):
         record[key] = attributes[key]
@@ -208,7 +210,8 @@ def on_test_teardown(name, outcome):
 track_in_event_log('test.start')
 track_in_event_log('test.call', include={
     'outcome': 'outcome',
-    'error': 'error'
+    'error': 'error',
+    'short_error': 'short_error',
 })
 
 

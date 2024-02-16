@@ -197,22 +197,25 @@ track_in_event_log('run.end', include={'result': 'result', 'run_id': 'run_id'})
 
 
 # Keep track of test items, recording their start and their result
+track_in_event_log('test.start')
+
+
 @OBS.on('test.start')
-def on_test_setup(name):
+def on_test_start(name):
     CTX.current_test = name.split('::')[-1]
 
 
 @OBS.on('test.teardown')
-def on_test_teardown(name, outcome):
+def on_test_teardown(name, outcome, error, short_error):
     CTX.current_test = None
 
 
-track_in_event_log('test.start')
-track_in_event_log('test.call', include={
-    'outcome': 'outcome',
-    'error': 'error',
-    'short_error': 'short_error',
-})
+for phase in ('call', 'setup', 'teardown'):
+    track_in_event_log(f'test.{phase}', include={
+        'outcome': 'outcome',
+        'error': 'error',
+        'short_error': 'short_error',
+    })
 
 
 # Keep track of API requests

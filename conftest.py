@@ -306,20 +306,13 @@ def pytest_runtest_logreport(report):
     if os.environ.get('PYTEST_XDIST_MASTER') == '1':
         return
 
-    if report.when == 'setup':
-        trigger('test.setup', name=report.nodeid, outcome=report.outcome)
-    elif report.when == 'call':
-        trigger(
-            'test.call',
-            name=report.nodeid,
-            outcome=report.outcome,
-            error=report.longreprtext,
-            short_error=extract_short_error(report.longreprtext),
-        )
-    elif report.when == 'teardown':
-        trigger('test.teardown', name=report.nodeid, outcome=report.outcome)
-    else:
-        raise NotImplementedError(f"Unsupported report stage: {report.when}")
+    trigger(
+        f'test.{report.when}',
+        name=report.nodeid,
+        outcome=report.outcome,
+        error=report.longreprtext,
+        short_error=extract_short_error(report.longreprtext),
+    )
 
 
 @pytest.fixture(scope='session')

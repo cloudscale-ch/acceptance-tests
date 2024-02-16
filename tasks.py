@@ -138,12 +138,17 @@ def summary(c):
     for log in sorted(Path('events').glob(pattern), reverse=True):
         with log.open('r') as f:
             for line in f:
-                event = json.loads(line)
+                e = json.loads(line)
 
-                if event.get('event') != 'test.call':
+                if e.get('event') not in ('test.setup', 'test.call'):
                     continue
 
-                results.append(event)
+                # There won't be an additional phase if the setup fails
+                if e['event'] == 'test.setup' and e['outcome'] != 'passed':
+                    results.append(e)
+
+                if e['event'] == 'test.call':
+                    results.append(e)
 
         if results and results[-1]['run'] == 1:
             break

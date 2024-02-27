@@ -734,3 +734,35 @@ def test_proxy_protocol(prober, create_load_balancer_scenario, proxy_protocol):
     prober.http_get(load_balancer.build_url(addr_family=6))
     logs = backend.output_of('journalctl --user-unit lbaas-http-test-server')
     assert expected_log_line[proxy_protocol] in logs
+
+
+def test_ping(prober, create_load_balancer_scenario, floating_ipv4,
+              floating_ipv6):
+    """ The load balancer answers to ICMP echo requests (ping) on all VIP
+    addresses and assigned Floating IPs.
+
+    """
+
+    # Create simple load balancer setup with public VIP
+    load_balancer, listener, pool, backends, private_network = \
+        create_load_balancer_scenario(
+            num_backends=1,
+            algorithm='round_robin',
+            port=80,
+            pool_protocol='tcp',
+            ssl=False,
+            health_monitor_type=None,
+            allowed_cidrs=None,
+        )
+
+    # Verify the load balancer is pingable on IPv4 and IPv6 VIP
+    prober.ping(load_balancer.vip(4), count=1, tries=15)
+    prober.ping(load_balancer.vip(6), count=1, tries=15)
+
+    # Assign Floating IPs to load balancer
+    floating_ipv4.assign(load_balancer=load_balancer)
+    floating_ipv6.assign(load_balancer=load_balancer)
+
+    # Verify the load balancer is pingable on the Floating IPs
+    prober.ping(floating_ipv4.address, count=1, tries=15)
+    prober.ping(floating_ipv6.address, count=1, tries=15)

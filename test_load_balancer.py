@@ -768,3 +768,67 @@ def test_ping(prober, create_load_balancer_scenario, floating_ipv4,
     # Verify the load balancer is pingable on the Floating IPs
     prober.ping(floating_ipv4.address, count=1, tries=15)
     prober.ping(floating_ipv6.address, count=1, tries=15)
+
+
+@pytest.mark.interactive
+def test_failover(prober, create_load_balancer_scenario, floating_ipv4,
+                  floating_ipv6, suspend_capture):
+    """ The load balancer continues to work as expected after a failover.
+    """
+
+    # Create simple load balancer setup with public VIP
+    load_balancer, listener, pool, (backend, ), private_network = \
+        create_load_balancer_scenario(
+            num_backends=1,
+            algorithm='round_robin',
+            port=80,
+            pool_protocol='tcp',
+            ssl=False,
+            health_monitor_type=None,
+            allowed_cidrs=None,
+    )
+
+    # Assign Floating IPs to load balancer
+    floating_ipv4.assign(load_balancer=load_balancer)
+    floating_ipv6.assign(load_balancer=load_balancer)
+
+    # Assert load balancer is reachable on the Floating IP after at most 20s
+    wait_for_url_ready(
+        build_http_url(floating_ipv4.address),
+        prober,
+        timeout=20,
+    )
+    wait_for_url_ready(
+        build_http_url(floating_ipv6.address),
+        prober,
+        timeout=20,
+    )
+
+    with suspend_capture():
+        input(
+            f'\nPlease failover the load balancer with UUID '
+            f'{load_balancer.uuid}. Press enter to continue after the '
+            f'failover. Please wait until the provisioning status is ACTIVE.'
+        )
+
+    # Verify the load balancer is pingable on IPv4 and IPv6 VIP
+    prober.ping(load_balancer.vip(4), count=1, tries=15)
+    prober.ping(load_balancer.vip(6), count=1, tries=15)
+
+    # Verify the load balancer is pingable on the Floating IPs
+    prober.ping(floating_ipv4.address, count=1, tries=15)
+    prober.ping(floating_ipv6.address, count=1, tries=15)
+
+    # Verify the load balancer serves content on the VIPs
+    content = prober.http_get(load_balancer.build_url(addr_family=4))
+    assert 'Backend server running on' in content
+
+    content = prober.http_get(load_balancer.build_url(addr_family=6))
+    assert 'Backend server running on' in content
+
+    # Verify the load balancer serves content on the Floating IPs
+    content = prober.http_get(build_http_url(floating_ipv4.address))
+    assert 'Backend server running on' in content
+
+    content = prober.http_get(build_http_url(floating_ipv6.address))
+    assert 'Backend server running on' in content

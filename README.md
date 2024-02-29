@@ -41,6 +41,7 @@ These tests are run regularly against our public infrastructure as well as our i
 |                     | [test_frontend_allowed_cidr](./test_load_balancer.py#L623)                       | default  |
 |                     | [test_proxy_protocol](./test_load_balancer.py#L698)                              | default  |
 |                     | [test_ping](./test_load_balancer.py#L741)                                        | default  |
+|                     | [test_failover](./test_load_balancer.py#L773)                                    | default  |
 | **Private Network** | [test_private_ip_address_on_all_images](./test_private_network.py#L14)           | all      |
 |                     | [test_private_network_connectivity_on_all_images](./test_private_network.py#L35) | all      |
 |                     | [test_multiple_private_network_interfaces](./test_private_network.py#L88)        | default  |

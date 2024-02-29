@@ -9,6 +9,7 @@ from api import API
 from constants import API_URL
 from constants import LOCKS_PATH
 from constants import RUNNER_ID
+from contextlib import contextmanager
 from datetime import datetime
 from datetime import timedelta
 from events import trigger
@@ -104,6 +105,20 @@ def pytest_addoption(parser):
         action='store',
         default=None,
         help="Username used for custom images"
+    )
+
+    parser.addoption(
+        '--interactive-tests',
+        action='store_true',
+        default=False,
+        help='Also run interactive tests.'
+    )
+
+    parser.addoption(
+        '--interactive-tests-only',
+        action='store_true',
+        default=False,
+        help='Only run interactive tests.'
     )
 
 
@@ -288,6 +303,20 @@ def pytest_collection_modifyitems(session, config, items):
 
     def sort_key(item):
         return item.fspath, item.name
+
+    skip_interactive = pytest.mark.skip(reason='Not running interactive tests')
+    skip_non_interactive = pytest.mark.skip(
+        reason='Not running non-interactive tests'
+    )
+
+    for item in items:
+        if 'interactive' in item.keywords:
+            if not (config.getoption("--interactive-tests")
+                    or config.getoption('--interactive-tests-only')):
+                item.add_marker(skip_interactive)
+        else:
+            if config.getoption('--interactive-tests-only'):
+                item.add_marker(skip_non_interactive)
 
     items.sort(key=sort_key)
 
@@ -812,3 +841,22 @@ def create_load_balancer_scenario(request, function_api, zone, prober, image,
         return load_balancer, listener, pool, backends, private_network
 
     return factory
+
+
+@pytest.fixture(scope='session')
+def suspend_capture(pytestconfig):
+    """ Fixture to suspend input/output captureing by pytest. This is useful to
+        allow interactive testing with console input/output.
+    """
+
+    cm = pytestconfig.pluginmanager.getplugin('capturemanager')
+
+    @contextmanager
+    def suspend_guard():
+        cm.suspend_global_capture(in_=True)
+        try:
+            yield
+        finally:
+            cm.resume_global_capture()
+
+    yield suspend_guard

@@ -116,9 +116,9 @@ def test_expand_filesystem_online_on_common_images(create_server, image):
     else:
         raise NotImplementedError(f"No known resize command for {fs_type}")
 
-    # Ensure that the device has been resized (the EFI partition may take up
-    # to 550MiB of space).
-    assert (16 * GiB - 550 * MiB) <= server.fs_size(device) <= 16 * GiB
+    # Ensure that the device has been resized.
+    # The /boot and /boot/efi partition may take up to 1249 MiB of space.
+    assert (16 * GiB - 1249 * MiB) <= server.fs_size(device) <= 16 * GiB
 
 
 def test_expand_filesystem_on_boot_on_common_images(create_server, image):
@@ -144,9 +144,9 @@ def test_expand_filesystem_on_boot_on_common_images(create_server, image):
     # Start the server
     server.start()
 
-    # Ensure that the device has been resized (the EFI partition may take up
-    # to 550MiB of space).
-    assert (16 * GiB - 550 * MiB) <= server.fs_size(device) <= 16 * GiB
+    # Ensure that the device has been resized.
+    # The /boot and /boot/efi partition may take up to 1249 MiB of space.
+    assert (16 * GiB - 1249 * MiB) <= server.fs_size(device) <= 16 * GiB
 
 
 def test_maximum_number_of_volumes(server, create_volume):

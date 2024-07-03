@@ -52,6 +52,9 @@ EXCLUDE = (
     'pfsense',
 )
 
+# Supported custom image formats.
+CUSTOM_IMAGE_FORMATS = ['raw', 'qcow2']
+
 # Function names containing this expression are tested with all/common images
 generatable_fn = re.compile(r'_(?P<kind>all|common)_images($|_)')
 
@@ -618,9 +621,13 @@ def private_network(create_private_network):
     return create_private_network()
 
 
-@pytest.fixture(scope='session', params=['raw', 'qcow2'])
+@pytest.fixture(scope='session', params=CUSTOM_IMAGE_FORMATS)
 def custom_alpine_image(request, upload_custom_image):
     """ A session scoped custom Alpine image. """
+
+    if request.param == 'qcow2':
+        pytest.xfail('Temporarily disabled due to OSSA-2024-001')
+        return
 
     return upload_custom_image(
         img_name='Alpine',
@@ -630,9 +637,13 @@ def custom_alpine_image(request, upload_custom_image):
     )
 
 
-@pytest.fixture(scope='session', params=['raw', 'qcow2'])
+@pytest.fixture(scope='session', params=CUSTOM_IMAGE_FORMATS)
 def custom_ubuntu_uefi_image(request, upload_custom_image):
     """ A session scoped custom Ubuntu UEFI image. """
+
+    if request.param == 'qcow2':
+        pytest.xfail('Temporarily disabled due to OSSA-2024-001')
+        return
 
     return upload_custom_image(
         img_name='Ubuntu UEFI',

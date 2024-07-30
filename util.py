@@ -281,18 +281,26 @@ def host_connect_factory(ip, username, ssh_key, deadline, jump_host=None):
     client = SSHClient()
     client.set_missing_host_key_policy(AutoAddPolicy())
 
-    if not jump_host:
-        channel = None
-    else:
-        channel = open_jump_host_channel(ip, jump_host, deadline)
+    channel = None
 
     def connect():
-        client.connect(
-            hostname=str(ip),
-            username=username,
-            pkey=ssh_key,
-            sock=channel,
-        )
+        nonlocal channel
+
+        if jump_host and (channel is None or channel.closed):
+            channel = open_jump_host_channel(ip, jump_host, deadline)
+
+        try:
+            client.connect(
+                hostname=str(ip),
+                username=username,
+                pkey=ssh_key,
+                sock=channel,
+            )
+        except Exception:
+            if channel is not None:
+                channel.close()
+
+            raise
 
         return client
 

@@ -619,13 +619,16 @@ class Server(CloudscaleResource):
 
         """
 
-        if self.spec.get('use_public_network', True):
-            return True
-
+        # If interfaces are given, they take precedence over other variables
         if 'interfaces' in self.spec:
             for interface in self.spec['interfaces']:
                 if interface['network'] == 'public':
                     return True
+
+            return False
+
+        if self.spec.get('use_public_network', True):
+            return True
 
         return False
 

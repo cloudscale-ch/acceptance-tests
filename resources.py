@@ -1092,7 +1092,8 @@ class CustomImage(CloudscaleResource):
 
                 return
 
-            raise RuntimeError(f"Custom Image Import has unexpected status: {current_status}")
+            raise RuntimeError(f"Custom Image Import has unexpected status: "
+                               f"{current_status}")
         raise Timeout(f"Waited more than {seconds}s for {self.url}")
 
 

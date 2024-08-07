@@ -1082,14 +1082,17 @@ class CustomImage(CloudscaleResource):
         timeout = datetime.now() + timedelta(seconds=seconds)
 
         while datetime.now() < timeout:
-            if self.progress['status'] == 'in_progress':
+            current_status = self.progress['status']
+            if current_status == 'in_progress':
                 time.sleep(1)
                 self.progress = self.api.get(self.progress['href']).json()
 
                 continue
+            if current_status == 'success':
 
-            return
+                return
 
+            raise RuntimeError(f"Custom Image Import has unexpected status: {current_status}")
         raise Timeout(f"Waited more than {seconds}s for {self.url}")
 
 

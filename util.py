@@ -702,7 +702,9 @@ def setup_lbaas_backend(backend, backend_network, ssl=False):
     interfaces = [{'network': iface['network']['uuid']}
                   for iface in backend.interfaces]
     interfaces.append({'network': backend_network.uuid})
+
     backend.update(interfaces=interfaces)
+    backend.enable_dhcp_in_networkd(backend.interfaces[-1])
 
     # Setup the HTTP test server
     setup_lbaas_http_test_server(backend, ssl)

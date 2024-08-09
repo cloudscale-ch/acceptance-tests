@@ -36,27 +36,27 @@ These tests are run regularly against our public infrastructure as well as our i
 |                     | [test_backend_health_monitors](./test_load_balancer.py#L292)                     | default  |
 |                     | [test_pool_member_change](./test_load_balancer.py#L372)                          | default  |
 |                     | [test_private_load_balancer_frontend](./test_load_balancer.py#L464)              | default  |
-|                     | [test_floating_ip](./test_load_balancer.py#L506)                                 | default  |
-|                     | [test_floating_ip_reassign](./test_load_balancer.py#L540)                        | default  |
-|                     | [test_frontend_allowed_cidr](./test_load_balancer.py#L621)                       | default  |
-|                     | [test_proxy_protocol](./test_load_balancer.py#L696)                              | default  |
-|                     | [test_ping](./test_load_balancer.py#L739)                                        | default  |
+|                     | [test_floating_ip](./test_load_balancer.py#L508)                                 | default  |
+|                     | [test_floating_ip_reassign](./test_load_balancer.py#L542)                        | default  |
+|                     | [test_frontend_allowed_cidr](./test_load_balancer.py#L623)                       | default  |
+|                     | [test_proxy_protocol](./test_load_balancer.py#L698)                              | default  |
+|                     | [test_ping](./test_load_balancer.py#L741)                                        | default  |
 | **Private Network** | [test_private_ip_address_on_all_images](./test_private_network.py#L14)           | all      |
 |                     | [test_private_network_connectivity_on_all_images](./test_private_network.py#L35) | all      |
 |                     | [test_multiple_private_network_interfaces](./test_private_network.py#L88)        | default  |
 |                     | [test_no_private_network_port_security](./test_private_network.py#L145)          | default  |
-|                     | [test_private_network_without_dhcp](./test_private_network.py#L201)              | default  |
-|                     | [test_private_network_mtu](./test_private_network.py#L244)                       | default  |
-|                     | [test_private_network_only_on_all_images](./test_private_network.py#L302)        | all      |
-|                     | [test_private_network_attach_later](./test_private_network.py#L324)              | default  |
-|                     | [test_private_network_dhcp_dns_replies](./test_private_network.py#L358)          | default  |
+|                     | [test_private_network_without_dhcp](./test_private_network.py#L242)              | default  |
+|                     | [test_private_network_mtu](./test_private_network.py#L288)                       | default  |
+|                     | [test_private_network_only_on_all_images](./test_private_network.py#L349)        | all      |
+|                     | [test_private_network_attach_later](./test_private_network.py#L371)              | default  |
+|                     | [test_private_network_dhcp_dns_replies](./test_private_network.py#L408)          | default  |
 | **Public Network**  | [test_public_ip_address_on_all_images](./test_public_network.py#L22)             | all      |
 |                     | [test_public_network_connectivity_on_all_images](./test_public_network.py#L51)   | all      |
 |                     | [test_public_network_mtu](./test_public_network.py#L70)                          | default  |
-|                     | [test_public_network_port_security](./test_public_network.py#L97)                | default  |
-|                     | [test_public_network_ipv4_only_on_all_images](./test_public_network.py#L181)     | all      |
-|                     | [test_reverse_ptr_record_of_server](./test_public_network.py#L202)               | default  |
-|                     | [test_reverse_ptr_record_of_floating_ip](./test_public_network.py#L226)          | default  |
+|                     | [test_public_network_port_security](./test_public_network.py#L102)               | default  |
+|                     | [test_public_network_ipv4_only_on_all_images](./test_public_network.py#L186)     | all      |
+|                     | [test_reverse_ptr_record_of_server](./test_public_network.py#L207)               | default  |
+|                     | [test_reverse_ptr_record_of_floating_ip](./test_public_network.py#L231)          | default  |
 | **Server**          | [test_change_flavor_from_flex_to_flex](./test_server.py#L18)                     | default  |
 |                     | [test_change_flavor_from_flex_to_plus](./test_server.py#L40)                     | default  |
 |                     | [test_change_flavor_from_plus_to_flex](./test_server.py#L62)                     | default  |

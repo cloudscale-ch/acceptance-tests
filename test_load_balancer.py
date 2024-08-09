@@ -485,6 +485,8 @@ def test_private_load_balancer_frontend(
         ],
     )
 
+    prober.enable_dhcp_in_networkd(prober.interfaces[-1])
+
     # Create a private load balancer setup with 1 backend on a private network
     load_balancer, listener, pool, (backend, ), backend_network = \
         create_load_balancer_scenario(

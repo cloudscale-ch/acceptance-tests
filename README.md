@@ -53,10 +53,10 @@ These tests are run regularly against our public infrastructure as well as our i
 | **Public Network**  | [test_public_ip_address_on_all_images](./test_public_network.py#L22)             | all      |
 |                     | [test_public_network_connectivity_on_all_images](./test_public_network.py#L51)   | all      |
 |                     | [test_public_network_mtu](./test_public_network.py#L70)                          | default  |
-|                     | [test_public_network_port_security](./test_public_network.py#L97)                | default  |
-|                     | [test_public_network_ipv4_only_on_all_images](./test_public_network.py#L181)     | all      |
-|                     | [test_reverse_ptr_record_of_server](./test_public_network.py#L202)               | default  |
-|                     | [test_reverse_ptr_record_of_floating_ip](./test_public_network.py#L226)          | default  |
+|                     | [test_public_network_port_security](./test_public_network.py#L102)               | default  |
+|                     | [test_public_network_ipv4_only_on_all_images](./test_public_network.py#L186)     | all      |
+|                     | [test_reverse_ptr_record_of_server](./test_public_network.py#L207)               | default  |
+|                     | [test_reverse_ptr_record_of_floating_ip](./test_public_network.py#L231)          | default  |
 | **Server**          | [test_change_flavor_from_flex_to_flex](./test_server.py#L18)                     | default  |
 |                     | [test_change_flavor_from_flex_to_plus](./test_server.py#L40)                     | default  |
 |                     | [test_change_flavor_from_plus_to_flex](./test_server.py#L62)                     | default  |

@@ -67,7 +67,7 @@ def test_public_network_connectivity_on_all_images(server):
         server.ping(address, count=3, interval=0.5)
 
 
-def test_public_network_mtu(server):
+def test_public_network_mtu(server, image):
     """ Verify that the public interface MTU is exactly 1500 bytes and that
     MTU-sized packages can be exchanged and not exceeded.
 
@@ -82,8 +82,13 @@ def test_public_network_mtu(server):
     assert int(mtu) == 1500
 
     # Get the address of the DHCP server in use
+    #
+    # Debian 12 uses systemd-networkd. Therefor, the log entries
+    # look way different than, for example Debian 10, with dhclient.
+    # Debian 12: DHCPv4, Debian 10: DHCPACK
     ping_target = server.output_of(
-        "sudo journalctl | grep DHCPACK | tail -n 1 | awk '{print $NF}'")
+        "sudo journalctl | awk '/DHCPv4|DHCPACK/{ip=$NF} END { print ip }'"
+    )
 
     # Try to send a packet using exactly 1500 bytes, which should work. We use
     # a size of 1472, as 8 bytes are used for the ICMP header and another

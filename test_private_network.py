@@ -142,13 +142,31 @@ def test_multiple_private_network_interfaces(create_server, image,
         s1.ping(f'192.168.{octet}.2', tries=10, wait=1)
 
 
-def test_no_private_network_port_security(create_server, image, server_group):
+def test_no_private_network_port_security(
+    create_server,
+    image,
+    server_group,
+    private_network
+):
     """ Private networks can do what public networks can't:
 
     * Change the mac address of an interface.
     * Change the IP address of an interface.
 
     """
+
+    # Define a custom subnet
+    subnet = private_network.add_subnet(cidr='192.168.100.0/24')
+
+    s1_address = '192.168.100.1'
+    s2_address = '192.168.100.1'
+
+    # Initialize each server with an interface attached to the private network.
+    # The servers are not given an address by DHCP
+    interfaces = [
+        {'network': 'public'},
+        {'network': private_network.uuid, 'addresses': []}
+    ]
 
     # Get two servers in a private network
     s1, s2 = in_parallel(create_server, instances=(
@@ -157,18 +175,42 @@ def test_no_private_network_port_security(create_server, image, server_group):
             'image': image,
             'use_private_network': True,
             'server_groups': [server_group.uuid],
+            'interfaces': interfaces,
         },
         {
             'name': 's2',
             'image': image,
             'use_private_network': True,
             'server_groups': [server_group.uuid],
+            'interfaces': interfaces,
         },
     ))
 
-    # Change the MAC addresses of the private interfaces
+    # Make sure the address is actually unset
+    assert s1.ip('private', 4, fail_if_missing=False) is None
+    assert s2.ip('private', 4, fail_if_missing=False) is None
+
+    # Make sure the host did not get an address matching the subnet
+    for address in s1.configured_ip_addresses():
+        assert address not in subnet
+
+    for address in s2.configured_ip_addresses():
+        assert address not in subnet
+
+    # Configure the IP addresses on the servers
     private = s1.private_interface.name
 
+    s1.assert_run(f'sudo ip addr add {s1_address}/24 dev {private}')
+    s1.assert_run(f'sudo ip link set dev {private} up')
+
+    s2.assert_run(f'sudo ip addr add {s2_address}/24 dev {private}')
+    s2.assert_run(f'sudo ip link set dev {private} up')
+
+    # Ping should now work
+    s1.ping(s2_address)
+    s2.ping(s1_address)
+
+    # Change the MAC addresses of the private interfaces
     with s1.host.sudo():
         s1.assert_run(f'ip link set dev {private} down')
         s1.assert_run(f'ip link set dev {private} address 02:00:00:00:00:01')
@@ -180,22 +222,21 @@ def test_no_private_network_port_security(create_server, image, server_group):
         s2.assert_run(f'ip link set dev {private} up')
 
     # Ping should still work
-    s1.ping(s2.ip('private', 4))
-    s2.ping(s1.ip('private', 4))
+    s1.ping(s2_address)
+    s2.ping(s1_address)
 
     # Switch the private IP address of both servers
-    s1_address = s1.ip('private', 4)
-    s2_address = s2.ip('private', 4)
-
     s1.assert_run(f'sudo ip addr del {s1_address}/24 dev {private}')
     s2.assert_run(f'sudo ip addr del {s2_address}/24 dev {private}')
 
-    s1.assert_run(f'sudo ip addr add {s2_address}/24 dev {private}')
-    s2.assert_run(f'sudo ip addr add {s1_address}/24 dev {private}')
+    s1_address, s2_address = s2_address, s1_address
+
+    s1.assert_run(f'sudo ip addr add {s1_address}/24 dev {private}')
+    s2.assert_run(f'sudo ip addr add {s2_address}/24 dev {private}')
 
     # Ping should continue to work
-    s1.ping(s2.ip('private', 4))
-    s2.ping(s1.ip('private', 4))
+    s1.ping(s2_address)
+    s2.ping(s1_address)
 
 
 def test_private_network_without_dhcp(create_server, image, private_network):

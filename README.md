@@ -46,10 +46,10 @@ These tests are run regularly against our public infrastructure as well as our i
 |                     | [test_multiple_private_network_interfaces](./test_private_network.py#L88)        | default  |
 |                     | [test_no_private_network_port_security](./test_private_network.py#L145)          | default  |
 |                     | [test_private_network_without_dhcp](./test_private_network.py#L201)              | default  |
-|                     | [test_private_network_mtu](./test_private_network.py#L244)                       | default  |
-|                     | [test_private_network_only_on_all_images](./test_private_network.py#L302)        | all      |
-|                     | [test_private_network_attach_later](./test_private_network.py#L324)              | default  |
-|                     | [test_private_network_dhcp_dns_replies](./test_private_network.py#L358)          | default  |
+|                     | [test_private_network_mtu](./test_private_network.py#L247)                       | default  |
+|                     | [test_private_network_only_on_all_images](./test_private_network.py#L305)        | all      |
+|                     | [test_private_network_attach_later](./test_private_network.py#L327)              | default  |
+|                     | [test_private_network_dhcp_dns_replies](./test_private_network.py#L361)          | default  |
 | **Public Network**  | [test_public_ip_address_on_all_images](./test_public_network.py#L22)             | all      |
 |                     | [test_public_network_connectivity_on_all_images](./test_public_network.py#L51)   | all      |
 |                     | [test_public_network_mtu](./test_public_network.py#L70)                          | default  |

@@ -234,7 +234,10 @@ def test_private_network_without_dhcp(create_server, image, private_network):
     private = s1.private_interface.name
 
     s1.assert_run(f'sudo ip addr add 192.168.100.1/24 dev {private}')
+    s1.assert_run(f'sudo ip link set dev {private} up')
+
     s2.assert_run(f'sudo ip addr add 192.168.100.2/24 dev {private}')
+    s2.assert_run(f'sudo ip link set dev {private} up')
 
     # Now the servers should see each other
     s1.ping('192.168.100.2')

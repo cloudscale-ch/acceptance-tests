@@ -312,6 +312,9 @@ def test_private_network_mtu(create_server, image, private_network):
     s1.assert_run(f'sudo ip link set dev {private} mtu 9000')
     s2.assert_run(f'sudo ip link set dev {private} mtu 9000')
 
+    s1.assert_run(f'sudo ip link set dev {private} up')
+    s2.assert_run(f'sudo ip link set dev {private} up')
+
     # Assert that MTU is at least 1500
     s1.ping('192.168.100.2', size=1472, fragment=False)
     s2.ping('192.168.100.1', size=1472, fragment=False)
@@ -377,6 +380,8 @@ def test_private_network_attach_later(server, private_network):
         interfaces=[{"network": "public"},
                     {"network": private_network.info["uuid"]}]
     )
+
+    server.networkd_add_interface(server, server.interfaces[1]['mac_address'])
 
     # Assert the private network interface now exists
     assert server.private_interface.exists

@@ -858,6 +858,27 @@ class Server(CloudscaleResource):
         sftp = self.host.backend.client.open_sftp()
         sftp.put(filename, remote_filename)
 
+    def networkd_add_interface(self, server, mac):
+        networkd_commands = [
+            (
+                "sudo tee /etc/systemd/network/private.network > /dev/null "
+                "<<EOF\n"
+                "[Match]\n"
+                f"MACAddress={mac}\n"
+                "\n"
+                "[Network]\n"
+                "DHCP=yes\n"
+                "EOF"
+            ),
+            # Restart systemd-networkd to apply the changes
+            "sudo systemctl restart systemd-networkd",
+            # Wait a few seconds for the DHCP to be applied
+            "sleep 5",
+        ]
+
+        for command in networkd_commands:
+            server.run(command)
+
 
 class FloatingIP(CloudscaleResource):
 

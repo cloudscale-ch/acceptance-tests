@@ -381,7 +381,8 @@ def test_private_network_attach_later(server, private_network):
                     {"network": private_network.info["uuid"]}]
     )
 
-    server.networkd_add_interface(server, server.interfaces[1]['mac_address'])
+    # Enable DHCP for the interface in networkd
+    server.enable_dhcp_in_networkd(server.interfaces[1])
 
     # Assert the private network interface now exists
     assert server.private_interface.exists

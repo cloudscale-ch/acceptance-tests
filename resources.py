@@ -1,3 +1,6 @@
+import secrets
+import textwrap
+import tempfile
 import time
 
 from constants import IMAGE_SPECIFIC_USER_DATA
@@ -851,33 +854,51 @@ class Server(CloudscaleResource):
 
         raise NotImplementedError(f"Unsupported filesystem: {fs}")
 
-    def put_file(self, filename, remote_filename=None):
+    def put_file(self, filename, remote_filename=None, sudo=False):
         if not remote_filename:
             remote_filename = Path(filename).name
 
         sftp = self.host.backend.client.open_sftp()
-        sftp.put(filename, remote_filename)
 
-    def networkd_add_interface(self, server, mac):
-        networkd_commands = [
-            (
-                "sudo tee /etc/systemd/network/private.network > /dev/null "
-                "<<EOF\n"
-                "[Match]\n"
-                f"MACAddress={mac}\n"
-                "\n"
-                "[Network]\n"
-                "DHCP=yes\n"
-                "EOF"
-            ),
-            # Restart systemd-networkd to apply the changes
-            "sudo systemctl restart systemd-networkd",
-            # Wait a few seconds for the DHCP to be applied
-            "sleep 5",
-        ]
+        if not sudo:
+            sftp.put(filename, remote_filename)
+        else:
+            temp_filename = f'/tmp/scp-{secrets.token_hex(16)}'
+            sftp.put(filename, temp_filename)
+            self.assert_run(f'sudo mv {temp_filename} {remote_filename}')
 
-        for command in networkd_commands:
-            server.run(command)
+    def put_file_content(self, remote_filename, content, sudo=False):
+        with tempfile.NamedTemporaryFile('w') as f:
+            f.write(content)
+            f.flush()
+
+            self.put_file(f.name, remote_filename, sudo)
+
+    def enable_dhcp_in_networkd(self, interface):
+        """ Additional private network interfaces have to be explicitly
+        configured to use DHCP, to get an IP address.
+
+        """
+
+        name = interface['mac_address'].replace(':', '-')
+
+        self.put_file_content(
+            f"/etc/systemd/network/{name}.network",
+            textwrap.dedent(f"""\
+                [Match]
+                MACAddress={interface['mac_address']}
+
+                [Network]
+                DHCP=yes
+            """),
+            sudo=True,
+        )
+
+        # Restart systemd-networkd to apply the changes
+        self.assert_run("sudo systemctl restart systemd-networkd")
+
+        # Wait a few seconds for the DHCP to be applied
+        time.sleep(5)
 
 
 class FloatingIP(CloudscaleResource):

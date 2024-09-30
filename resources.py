@@ -313,7 +313,17 @@ class Server(CloudscaleResource):
             # address. A DNS lookup is used for it, to not hard-code the
             # address. The DNS lookup is usually done via IPv4 on the host.
             ipv6_address = self.resolve('api.cloudscale.ch', version=6)[0]
-            self.ping(ipv6_address, tries=10, wait=2)
+
+            try:
+                self.ping(ipv6_address, tries=1, wait=1)
+            except AssertionError:
+
+                # In the vast majority of cases, the ping probe works on the
+                # first attempt. If it does not, we have to wait for up to 16s
+                # for the neighbor cache on the switches to expire.
+                time.sleep(16)
+
+                self.ping(ipv6_address, tries=1, wait=1)
 
     @with_trigger('server.wait-for-cloud-init')
     def wait_for_cloud_init(self, host, timeout):

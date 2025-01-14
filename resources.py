@@ -402,6 +402,27 @@ class Server(CloudscaleResource):
 
         raise Timeout(f"Timed out waiting for {self}:{port} to be {state}")
 
+    @with_trigger('server.wait-for-text-in-file')
+    def wait_for_text_in_file(self, path, text, timeout=30):
+        """ Waits for a text in a file.
+
+        Checks the output of a given file
+        and waits until a certain message is printed.
+        """
+
+        until = datetime.utcnow() + timedelta(seconds=timeout)
+
+        while datetime.utcnow() <= until:
+            vm_log = self.output_of(f'sudo cat {path}')
+
+            if text in vm_log:
+                return
+
+            time.sleep(2.5)
+
+        raise Timeout(
+            f"Timed out waiting for {self}:{path} to contain {text}")
+
     @with_trigger('server.update')
     def update(self, **properties):
         """ Updates the given properties of the server, using the

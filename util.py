@@ -786,4 +786,4 @@ def extract_short_error(longrepr):
         if line.startswith('>'):
             break
 
-    return prev[1:].strip()
+    return prev and prev[1:].strip() or prev

@@ -53,6 +53,13 @@ class CloudscaleResource:
         raise AttributeError(f'Attribute does not exist: {name}')
 
     @classmethod
+    def from_href(cls, request, api, href, **kwargs):
+        resource = cls(request, api, **kwargs)
+        resource.info['href'] = href
+        resource.refresh()
+        return resource
+
+    @classmethod
     def factory(cls, **defaults):
         """ Returns a factory that creates the resource using the given
         parameters, pre-filled with the given defaults.
@@ -783,6 +790,20 @@ class Server(CloudscaleResource):
                         matches.append(address)
 
         return matches
+
+    @property
+    def root_volume(self):
+        """ Returns a Volume resource representing the root volume. """
+
+        volume = self.volumes[0]
+
+        return Volume.from_href(
+            self.request,
+            self.api,
+            volume['href'],
+            size=volume['size_gb'],
+            zone=self.zone['slug'],
+        )
 
     @with_trigger('server.scale-root')
     def scale_root_disk(self, new_size):

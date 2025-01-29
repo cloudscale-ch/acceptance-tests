@@ -1018,6 +1018,53 @@ class Volume(CloudscaleResource):
     def detach(self):
         self.update(server_uuids=[])
 
+    @with_trigger('volume.snapshot')
+    def snapshot(self, name, timeout=30):
+        snapshot = self.api.post(
+            '/volume-snapshots',
+            json={'name': name, 'source_volume': self.uuid},
+        ).json()
+
+        end = datetime.now() + timedelta(seconds=timeout)
+        while datetime.now() < end:
+            if snapshot['status'] == 'available':
+                break
+
+            snapshot = self.api.get(
+                f'/volume-snapshots/{snapshot["uuid"]}').json()
+
+        else:
+            raise Timeout(
+                f'Snapshotting took longer than {timeout} seconds. Current '
+                f'snapshot status is {snapshot["status"]}.'
+            )
+
+        return snapshot
+
+    @with_trigger('volume.revert')
+    def revert(self, snapshot, timeout=120):
+        self.api.post(
+            f'/volumes/{self.uuid}/revert',
+            json={'snapshot': snapshot["uuid"]},
+            # This request does not support tagging
+            add_tags=False,
+        )
+        self.refresh()
+
+        end = datetime.now() + timedelta(seconds=timeout)
+        while datetime.now() < end:
+            if self.current_operation is None:
+                break
+
+            self.refresh()
+            time.sleep(1)
+
+        else:
+            raise Timeout(
+                f'Reverting snapshot took longer than {timeout} seconds. '
+                f'Current status is "{self.current_operation}".'
+            )
+
 
 class ServerGroup(CloudscaleResource):
 

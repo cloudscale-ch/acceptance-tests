@@ -67,10 +67,10 @@ class API(requests.Session):
 
         self.mount("https://", adapter)
 
-    def post(self, url, data=None, json=None, **kwargs):
+    def post(self, url, data=None, json=None, add_tags=True, **kwargs):
         assert not data, "Please only use json, not data"
 
-        if json:
+        if json and add_tags:
             json['tags'] = {
                 'runner': RUNNER_ID,
                 'process': PROCESS_ID,

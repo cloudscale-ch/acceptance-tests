@@ -13,6 +13,7 @@ import pytest
 
 from requests.exceptions import HTTPError
 from util import extract_number
+from warnings import warn
 
 # Volume sizes are measured in GiB
 GiB = 1024 ** 3
@@ -178,3 +179,203 @@ def test_maximum_number_of_volumes(server, create_volume):
     assert error.value.response.json()['detail'] == (
         "Due to internal limitations, it is currently not possible "
         "to attach more than 128 volumes.")
+
+
+def test_snapshot_volume_attached(server, volume):
+    """ Attached volumes can be snapshotted and reverted.
+
+    It is possible to create a snapshot of a volume which is currently attached
+    and to revert the volume back to this state.
+
+    Snapshots of volumes taken while they are attached and mounted are crash
+    consistent. Some in-flight data might not be in the snapshot, but the
+    volume can always be recovered to a consistent state.
+
+    """
+
+    # Attach volume to server and format
+    volume.attach(server)
+    time.sleep(5)
+    server.assert_run('sudo mkfs.ext4 /dev/sdb')
+    server.assert_run('sudo mount /dev/sdb /mnt')
+
+    # Create two files. The first is synced to disk with fsync, the second
+    # is not synced. Data might still be in-flight.
+    server.assert_run(
+        'sudo dd if=/dev/zero of=/mnt/synced count=1 bs=1M conv=fsync')
+    server.assert_run(
+        'sudo dd if=/dev/zero of=/mnt/not-synced count=1 bs=1M')
+
+    # Create snapshot
+    snapshot = volume.snapshot('snap')
+
+    # Write test file to volume
+    server.assert_run('sudo touch /mnt/after-snapshot')
+
+    # Try reverting while attached (should fail)
+    with pytest.raises(HTTPError) as error:
+        volume.revert(snapshot)
+
+    # Assert a HTTP 400 BadRequest response with a specific error message
+    assert error.value.response.status_code == 400
+    assert error.value.response.json()['detail'] == (
+        'Cannot revert non-root volumes while they are attached to a server.'
+    )
+
+    # Detach volume
+    server.assert_run('sudo umount /mnt')
+    volume.detach()
+    time.sleep(5)
+
+    # Revert volume to snapshot
+    volume.revert(snapshot)
+
+    # Reattach and mount the volume
+    volume.attach(server)
+    time.sleep(5)
+    server.assert_run('sudo mount /dev/sdb /mnt')
+
+    # Verify the test files are in the correct state
+    assert server.file_path_exists('/mnt/synced')
+    assert not server.file_path_exists('/mnt/after-snapshot')
+
+    # "Warn" if the file "not-synced" exists. This is not a failure because
+    # depending on the exact timing the data might get written to disk.
+    if server.file_path_exists('/mnt/not-synced'):
+        warn(
+            'File "not-synced" is included in the snapshot although it was '
+            'not explicitly synced.',
+        )
+
+
+def test_snapshot_volume_detached(server, volume):
+    """ Detached volumes can be snapshotted and reverted.
+
+    It is possible to create a snapshot of a volume which is detached
+    and to revert the volume back to this state.
+
+    Snapshots taken while the volume is detached and the filesystem unmounted
+    are always fully consistent. All data is written to the disk.
+
+    """
+
+    # Attach and format volume to server
+    volume.attach(server)
+    time.sleep(5)
+    server.assert_run('sudo mkfs.ext4 /dev/sdb')
+    server.assert_run('sudo mount /dev/sdb /mnt')
+
+    # Create two files. The first is synced to disk with fsync, the second
+    # is not synced. Data might still be in-flight.
+    server.assert_run(
+        'sudo dd if=/dev/zero of=/mnt/synced count=1 bs=1M conv=fsync')
+    server.assert_run('sudo dd if=/dev/zero of=/mnt/not-synced count=1 bs=1M')
+
+    # Unmount the volume
+    server.assert_run('sudo umount /mnt')
+
+    # Record the checksum of the first 1GiB of the volume
+    # (Checksumming the whole volume would take too much time.)
+    sha256_before = server.output_of(
+        'sudo dd if=/dev/sdb count=1 bs=1GiB 2>/dev/null | sha256sum')
+
+    # Detach and create snapshot
+    volume.detach()
+    snapshot = volume.snapshot('snap')
+
+    # Attach and mount the volume again
+    volume.attach(server)
+    time.sleep(5)
+    server.assert_run('sudo mount /dev/sdb /mnt')
+
+    # Write test file to volume
+    server.assert_run('sudo touch /mnt/after-snapshot')
+
+    # Detach volume
+    server.assert_run('sudo umount /mnt')
+    volume.detach()
+    time.sleep(5)
+
+    # Revert volume to snapshot
+    volume.revert(snapshot)
+
+    # Reattach volume
+    volume.attach(server)
+    time.sleep(5)
+
+    # Recored the volume checksum
+    sha256_after = server.output_of(
+        'sudo dd if=/dev/sdb count=1 bs=1GiB 2>/dev/null | sha256sum')
+
+    # Verify the checksums match
+    assert sha256_before == sha256_after
+
+    # Mount the volume
+    server.assert_run('sudo mount /dev/sdb /mnt')
+
+    # Verify the test files are in the correct state
+    assert server.file_path_exists('/mnt/synced')
+
+    # Because the volume was unmounted everything must be synced to disk
+    assert server.file_path_exists('/mnt/not-synced')
+    assert not server.file_path_exists('/mnt/after-snapshot')
+
+
+def test_snapshot_root_volume(create_server):
+    """ Root volumes can be snapshotted and reverted.
+
+    It is possible to create a snapshot of a root volume and to revert it
+    back to the this state.
+
+    Snapshots are crash consistent and data commited to the volume before the
+    snapshot is part of the snapshot, but writes in flight can be missing.
+
+    """
+
+    server = create_server(image='debian-12')
+    volume = server.root_volume
+
+    # Sync everything written during boot to disk (eg. SSH host keys)
+    server.assert_run('sync')
+
+    # Create two files. The first is synced to disk with fsync, the second
+    # is not synced. Data might still be in-flight.
+    server.assert_run('dd if=/dev/zero of=synced count=1 bs=1M conv=fsync')
+    server.assert_run('dd if=/dev/zero of=not-synced count=1 bs=1M')
+
+    # Create snapshot
+    snapshot = volume.snapshot('snap')
+
+    # Write test file to volume
+    server.assert_run('touch after-snapshot')
+
+    # Try reverting while the server is running (should fail)
+    with pytest.raises(HTTPError) as error:
+        volume.revert(snapshot)
+
+    # Assert a HTTP 400 BadRequest response with a specific error message
+    assert error.value.response.status_code == 400
+    assert error.value.response.json()['detail'] == (
+        'Root volumes can only be reverted if server state is "stopped".'
+    )
+
+    # Stop the server
+    server.stop()
+
+    # Revert volume to snapshot
+    volume.revert(snapshot)
+
+    # Start the server again
+    server.start()
+
+    # Verify the test files are in the correct state
+    assert server.file_path_exists('synced')
+    assert not server.file_path_exists('after-snapshot')
+
+    # "Warn" if the file "not-synced" exists. This is not a failure because
+    # depending on the exact timing the data might get written to disk.
+    if server.file_path_exists('not-synced'):
+        warn(
+            'File "not-synced" is included in the snapshot although it was '
+            'not explicitly synced.',
+        )

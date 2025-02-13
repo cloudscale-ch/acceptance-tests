@@ -155,6 +155,8 @@ class API(requests.Session):
     def cleanup(self, limit_to_scope=True, limit_to_process=True):
         """ Deletes resources created by this API object. """
 
+        exceptions = []
+
         for r in self.runner_resources():
             assert r['tags']['runner'] == RUNNER_ID
 
@@ -164,4 +166,10 @@ class API(requests.Session):
             if limit_to_process and r['tags']['process'] != PROCESS_ID:
                 continue
 
-            self.delete(r['href'])
+            try:
+                self.delete(r['href'])
+            except Exception as e:
+                exceptions.append(e)
+
+        if exceptions:
+            raise ExceptionGroup("Failures during cleanup.", exceptions)

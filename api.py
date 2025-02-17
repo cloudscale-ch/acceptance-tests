@@ -1,10 +1,12 @@
 import requests
+import time
 
 from constants import API_TOKEN
 from constants import API_URL
 from constants import LOCKS_PATH
 from constants import PROCESS_ID
 from constants import RUNNER_ID
+from errors import Timeout
 from events import trigger
 from filelock import FileLock
 from requests.adapters import HTTPAdapter
@@ -67,10 +69,10 @@ class API(requests.Session):
 
         self.mount("https://", adapter)
 
-    def post(self, url, data=None, json=None, **kwargs):
+    def post(self, url, data=None, json=None, add_tags=True, **kwargs):
         assert not data, "Please only use json, not data"
 
-        if json:
+        if json and add_tags:
             json['tags'] = {
                 'runner': RUNNER_ID,
                 'process': PROCESS_ID,
@@ -78,6 +80,31 @@ class API(requests.Session):
             }
 
         return super().post(url, data=data, json=json, **kwargs)
+
+    def delete(self, url):
+        super().delete(url)
+
+        # Wait for snapshots to be deleted
+        if 'volume-snapshots' in url:
+            timeout = time.monotonic() + 60
+
+            while time.monotonic() < timeout:
+                time.sleep(1)
+
+                try:
+                    snapshot = self.get(url)
+                except requests.exceptions.HTTPError as e:
+                    if e.response.status_code == 404:
+                        # The snapshot is gone, stop waiting
+                        break
+                    else:
+                        raise e
+
+            else:
+                raise Timeout(
+                    f'Snapshot failed to delete within 60 seconds. Status '
+                    f'is still "{snapshot.json()["status"]}".'
+                )
 
     def on_response(self, response, *args, **kwargs):
         trigger('request.after', request=response.request, response=response)
@@ -115,6 +142,7 @@ class API(requests.Session):
         def resources(path):
             return self.get(f'{path}?tag:runner={RUNNER_ID}').json()
 
+        yield from resources('/volume-snapshots')
         yield from resources('/servers')
         yield from resources('/load-balancers')
         yield from resources('/volumes')
@@ -127,6 +155,8 @@ class API(requests.Session):
     def cleanup(self, limit_to_scope=True, limit_to_process=True):
         """ Deletes resources created by this API object. """
 
+        exceptions = []
+
         for r in self.runner_resources():
             assert r['tags']['runner'] == RUNNER_ID
 
@@ -136,4 +166,10 @@ class API(requests.Session):
             if limit_to_process and r['tags']['process'] != PROCESS_ID:
                 continue
 
-            self.delete(r['href'])
+            try:
+                self.delete(r['href'])
+            except Exception as e:
+                exceptions.append(e)
+
+        if exceptions:
+            raise ExceptionGroup("Failures during cleanup.", exceptions)

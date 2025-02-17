@@ -53,6 +53,13 @@ class CloudscaleResource:
         raise AttributeError(f'Attribute does not exist: {name}')
 
     @classmethod
+    def from_href(cls, request, api, href, **kwargs):
+        resource = cls(request, api, **kwargs)
+        resource.info['href'] = href
+        resource.refresh()
+        return resource
+
+    @classmethod
     def factory(cls, **defaults):
         """ Returns a factory that creates the resource using the given
         parameters, pre-filled with the given defaults.
@@ -784,6 +791,20 @@ class Server(CloudscaleResource):
 
         return matches
 
+    @property
+    def root_volume(self):
+        """ Returns a Volume resource representing the root volume. """
+
+        volume = self.volumes[0]
+
+        return Volume.from_href(
+            self.request,
+            self.api,
+            volume['href'],
+            size=volume['size_gb'],
+            zone=self.zone['slug'],
+        )
+
     @with_trigger('server.scale-root')
     def scale_root_disk(self, new_size):
         """ Scales the root disk of the server. """
@@ -1017,6 +1038,53 @@ class Volume(CloudscaleResource):
     @with_trigger('volume.detach')
     def detach(self):
         self.update(server_uuids=[])
+
+    @with_trigger('volume.snapshot')
+    def snapshot(self, name, timeout=30):
+        snapshot = self.api.post(
+            '/volume-snapshots',
+            json={'name': name, 'source_volume': self.uuid},
+        ).json()
+
+        end = datetime.now() + timedelta(seconds=timeout)
+        while datetime.now() < end:
+            if snapshot['status'] == 'available':
+                break
+
+            snapshot = self.api.get(
+                f'/volume-snapshots/{snapshot["uuid"]}').json()
+
+        else:
+            raise Timeout(
+                f'Snapshotting took longer than {timeout} seconds. Current '
+                f'snapshot status is {snapshot["status"]}.'
+            )
+
+        return snapshot
+
+    @with_trigger('volume.revert')
+    def revert(self, snapshot, timeout=120):
+        self.api.post(
+            f'/volumes/{self.uuid}/revert',
+            json={'snapshot': snapshot["uuid"]},
+            # This request does not support tagging
+            add_tags=False,
+        )
+        self.refresh()
+
+        end = datetime.now() + timedelta(seconds=timeout)
+        while datetime.now() < end:
+            if self.current_operation is None:
+                break
+
+            self.refresh()
+            time.sleep(1)
+
+        else:
+            raise Timeout(
+                f'Reverting snapshot took longer than {timeout} seconds. '
+                f'Current status is "{self.current_operation}".'
+            )
 
 
 class ServerGroup(CloudscaleResource):

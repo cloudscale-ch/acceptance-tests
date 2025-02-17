@@ -69,11 +69,14 @@ These tests are run regularly against our public infrastructure as well as our i
 |                     | [test_no_cpu_steal_on_plus_flavor](./test_server.py#L215)                        | default  |
 |                     | [test_random_number_generator](./test_server.py#L247)                            | default  |
 |                     | [test_metadata_on_all_images](./test_server.py#L262)                             | all      |
-| **Volume**          | [test_attach_and_detach_volume_on_all_images](./test_volume.py#L22)              | all      |
-|                     | [test_expand_volume_online_on_all_images](./test_volume.py#L57)                  | all      |
-|                     | [test_expand_filesystem_online_on_common_images](./test_volume.py#L82)           | common   |
-|                     | [test_expand_filesystem_on_boot_on_common_images](./test_volume.py#L124)         | common   |
-|                     | [test_maximum_number_of_volumes](./test_volume.py#L152)                          | default  |
+| **Volume**          | [test_attach_and_detach_volume_on_all_images](./test_volume.py#L23)              | all      |
+|                     | [test_expand_volume_online_on_all_images](./test_volume.py#L58)                  | all      |
+|                     | [test_expand_filesystem_online_on_common_images](./test_volume.py#L83)           | common   |
+|                     | [test_expand_filesystem_on_boot_on_common_images](./test_volume.py#L125)         | common   |
+|                     | [test_maximum_number_of_volumes](./test_volume.py#L153)                          | default  |
+|                     | [test_snapshot_volume_attached](./test_volume.py#L184)                           | default  |
+|                     | [test_snapshot_volume_detached](./test_volume.py#L251)                           | default  |
+|                     | [test_snapshot_root_volume](./test_volume.py#L324)                               | default  |
 
 ## Warning
 

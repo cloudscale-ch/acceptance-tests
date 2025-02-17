@@ -114,7 +114,7 @@ class API(requests.Session):
         trigger('request.after', request=response.request, response=response)
 
         # Record the history if Retry was used
-        if response.status_code == 503:
+        if response.raw.retries.history:
             record(
                 'request.retry',
                 retries=len(response.raw.retries.history),

@@ -198,7 +198,7 @@ def summary(c):
     if maintenance_retries:
         print(
             f"🚧 A total of {maintenance_retries} requests have been retried "
-            "due to API maintenances.\n"
+            "due to API maintenance.\n"
         )
 
     if reruns or failures:

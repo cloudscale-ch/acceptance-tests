@@ -7,7 +7,7 @@ from constants import LOCKS_PATH
 from constants import PROCESS_ID
 from constants import RUNNER_ID
 from errors import Timeout
-from events import trigger
+from events import record, trigger
 from filelock import FileLock
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
@@ -54,13 +54,17 @@ class API(requests.Session):
         self.scope = scope
         self.read_only = read_only
 
-        # DELETE may fail on resources when they are being created, so we
-        # retry those a number of times
+        # The API may be in maintenance (HTTP 503) or
+        # DELETE may fail on resources when they are being created,
+        # so we retry those a number of times.
+        #
+        # 8 Retries @ 2.5 backoff_factor = 10.6 minutes
         retry_strategy = Retry(
-            total=5,
-            status_forcelist=[400],
-            allowed_methods=["DELETE"],
-            backoff_factor=1
+            total=8,
+            status_forcelist=[400, 503],
+            allowed_methods=["HEAD", "GET", "POST", "DELETE"],
+            raise_on_status=False,  # Prevent Exception after every request
+            backoff_factor=2.5
         )
 
         adapter = CloudscaleHTTPAdapter(
@@ -108,6 +112,14 @@ class API(requests.Session):
 
     def on_response(self, response, *args, **kwargs):
         trigger('request.after', request=response.request, response=response)
+
+        # Record the history if Retry was used
+        if response.raw.retries.history:
+            record(
+                'request.retry',
+                retries=len(response.raw.retries.history),
+                history=response.raw.retries.history
+            )
 
         try:
             response.raise_for_status()

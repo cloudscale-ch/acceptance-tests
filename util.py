@@ -777,6 +777,9 @@ def extract_short_error(longrepr):
     if not longrepr:
         return None
 
+    if not "\n" in longrepr:
+        return longrepr
+
     prev = None
 
     # Start from the bottom since that's nearer

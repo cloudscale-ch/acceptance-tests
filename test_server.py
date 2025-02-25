@@ -11,8 +11,10 @@ API Docs: https://www.cloudscale.ch/en/api/v1
 
 """
 
+from datetime import datetime, timedelta
 from util import extract_number
 from util import oneliner
+import time
 
 
 def test_change_flavor_from_flex_to_flex(create_server):
@@ -284,3 +286,156 @@ def test_metadata_on_all_images(server):
     # We can find the same information on the metadata service
     assert server.uuid in server.http_get(
         'http://169.254.169.254/openstack/latest/meta_data.json')
+
+
+def test_outgoing_smtp_block_ipv4(server):
+    """ All outbound SMTP (Port 25) traffic is blocked. """
+
+    # Get the source IP addresses
+    ipv4_address = server.ip('public', 4)
+
+    server.run(f'sudo apt update')
+    server.run(f'sudo apt install netcat-openbsd -y')
+
+    # Allow up to 1 minute until we expect connections to be blocked
+    until = datetime.utcnow() + timedelta(seconds=60)
+
+    connect_result = None
+    while datetime.utcnow() <= until:
+        connect_result = server.run(
+            f'nc -vz -4 -w 5 -s {ipv4_address} mail.cloudscale.ch 25'
+        )
+
+        if connect_result.rc == 1:
+            break
+
+        time.sleep(2.5)
+
+    assert 'Connection refused' in connect_result.stderr \
+        or 'timed out' in connect_result.stderr
+
+
+def test_outgoing_smtp_block_ipv6(server):
+    """ All outbound SMTP (Port 25) traffic is blocked. """
+
+    # Get the source IP addresses
+    ipv6_address = server.ip('public', 6)
+
+    server.run(f'sudo apt update')
+    server.run(f'sudo apt install netcat-openbsd -y')
+
+    # Allow up to 1 minute until we expect connections to be blocked
+    until = datetime.utcnow() + timedelta(seconds=60)
+
+    connect_result = None
+    while datetime.utcnow() <= until:
+        connect_result = server.run(
+            f'nc -vz -6 -w 5 -s {ipv6_address} mail.cloudscale.ch 25'
+        )
+
+        if connect_result.rc == 1:
+            break
+
+        time.sleep(2.5)
+
+    assert 'Connection refused' in connect_result.stderr \
+        or 'timed out' in connect_result.stderr
+
+
+def test_outgoing_smtp_block_ipv4_floating(server, floating_ipv4):
+    """ All outbound SMTP (Port 25) traffic is blocked. """
+
+    # Assign and configure the Floating IP to the server
+    # and wait up to 15 seconds for the change to propagate
+    floating_ipv4.assign(server)
+    server.configure_floating_ip(floating_ipv4)
+    server.ping(floating_ipv4, timeout=1, tries=15)
+
+    # Get the source IP addresses
+    ipv4_flaoting_address = floating_ipv4.ip
+
+    server.run(f'sudo apt update')
+    server.run(f'sudo apt install netcat-openbsd -y')
+
+    # Allow up to 1 minute until we expect connections to be blocked
+    until = datetime.utcnow() + timedelta(seconds=60)
+
+    connect_result = None
+    while datetime.utcnow() <= until:
+        connect_result = server.run(
+            f'nc -vz -4 -w 5 -s {ipv4_flaoting_address} mail.cloudscale.ch 25'
+        )
+
+        if connect_result.rc == 1:
+            break
+
+        time.sleep(2.5)
+
+    assert 'Connection refused' in connect_result.stderr \
+        or 'timed out' in connect_result.stderr
+
+
+def test_outgoing_smtp_block_ipv6_floating(server, floating_ipv6):
+    """ All outbound SMTP (Port 25) traffic is blocked. """
+
+    # Assign and configure the Floating IP to the server
+    # and wait up to 15 seconds for the change to propagate
+    floating_ipv6.assign(server)
+    server.configure_floating_ip(floating_ipv6)
+    server.ping(floating_ipv6, timeout=1, tries=15)
+
+    # Get the source IPv6 addresses
+    ipv6_flaoting_address = floating_ipv6.ip
+
+    server.run(f'sudo apt update')
+    server.run(f'sudo apt install netcat-openbsd -y')
+
+    # Allow up to 1 minute until we expect connections to be blocked
+    until = datetime.utcnow() + timedelta(seconds=60)
+
+    connect_result = None
+    while datetime.utcnow() <= until:
+        connect_result = server.run(
+            f'nc -vz -6 -w 5 -s {ipv6_flaoting_address} mail.cloudscale.ch 25'
+        )
+
+        if connect_result.rc == 1:
+            break
+
+        time.sleep(2.5)
+
+    assert 'Connection refused' in connect_result.stderr \
+        or 'timed out' in connect_result.stderr
+
+
+def test_outgoing_smtp_block_ipv6_floating_net(server, floating_network):
+    """ All outbound SMTP (Port 25) traffic is blocked. """
+
+    # Assign and configure a Floating IP to the server
+    # and wait up to 15 seconds for the change to propagate
+    floating_network.assign(server)
+    server.configure_floating_ip(floating_network.network[0])
+    server.ping(floating_network.network[0], timeout=1, tries=15)
+
+    # Get the source IPv6 addresses
+    ipv6_flaoting_address = floating_network.network[0]
+
+    server.run(f'sudo apt update')
+    server.run(f'sudo apt install netcat-openbsd -y')
+
+    # Allow up to 1 minute until we expect connections to be blocked
+    until = datetime.utcnow() + timedelta(seconds=60)
+
+    connect_result = None
+    while datetime.utcnow() <= until:
+        connect_result = server.run(
+            f'nc -vz -6 -w 5 -s {ipv6_flaoting_address} mail.cloudscale.ch 25'
+        )
+
+        if connect_result.rc == 1:
+            break
+
+        time.sleep(2.5)
+
+    assert 'Connection refused' in connect_result.stderr \
+        or 'timed out' in connect_result.stderr

@@ -177,7 +177,8 @@ def summary(c):
         if r['outcome'] != 'passed' and r['run'] == maxrun]
 
     maintenance_retries = sum(
-        r['retries'] for r in retries
+        sum(1 for retry in r['history'] if 503 in retry)
+        for r in retries
         if r['event'] == 'request.retry')
 
     print("# Test Run Summary")

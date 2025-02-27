@@ -130,7 +130,7 @@ def summary(c):
 
     pattern = f'at-{date.today().year}-*.log'
     results = []
-    retries = []
+    requests = []
 
     # Go from newest to oldest, until events with only one run are found. This
     # way, we get the latest events of run n, then n-1, towards 1.
@@ -142,8 +142,8 @@ def summary(c):
                 e = json.loads(line)
 
                 # Collect all request retry events
-                if e['event'] == 'request.retry':
-                    retries.append(e)
+                if e['event'].startswith('request.'):
+                    requests.append(e)
 
                 if e.get('event') not in ('test.setup', 'test.call'):
                     continue
@@ -177,9 +177,9 @@ def summary(c):
         if r['outcome'] != 'passed' and r['run'] == maxrun]
 
     maintenance_retries = sum(
-        sum(1 for retry in r['history'] if 503 in retry)
-        for r in retries
-        if r['event'] == 'request.retry')
+        sum(1 for status in r['history'] if status == 503)
+        for r in requests
+        if r['retries'])
 
     print("# Test Run Summary")
     print("")

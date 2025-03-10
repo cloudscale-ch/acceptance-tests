@@ -11,7 +11,12 @@ import time
 
 @pytest.mark.parametrize('ip_version', [4, 6])
 def test_outgoing_smtp_block_ip(server, ip_version):
-    """ All outbound SMTP (Port 25) traffic is blocked by default. """
+    """ All outbound SMTP (Port 25) traffic is blocked by default.
+
+        Port 25 outbound is blocked on all IPv4 and IPv6 interfaces,
+        but can be enabled for certain customers upon request.
+
+    """
 
     # Get the source IP addresses
     ip = server.ip('public', ip_version)
@@ -53,7 +58,13 @@ def test_outgoing_smtp_block_floating_ip(
     floating_ipv6,
     floating_network
 ):
-    """ All outbound SMTP (Port 25) traffic is blocked by default. """
+    """ All outbound SMTP (Port 25) traffic is blocked by default.
+
+        Port 25 outbound is blocked on all floating IPv4 and IPv6
+        interfaces and networks, but can be enabled for certain customers
+        upon request.
+
+    """
 
     # Get the IP
     floating_map = {

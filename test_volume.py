@@ -379,3 +379,118 @@ def test_snapshot_root_volume(create_server):
             'File "not-synced" is included in the snapshot although it was '
             'not explicitly synced.',
         )
+
+
+def test_multiple_snapshot_volume_attached(server, volume):
+    """
+    Volumes can be snapshotted and reverted in multiple steps.
+
+    The test creates three snapshots:
+      - Snapshot1: initial state with 'before-snapshot-1'
+      - Snapshot2: after creating 'after-snapshot-1'.
+      - Snapshot3: after creating 'after-snapshot-2'.
+
+    The volume is then reverted from newest (snapshot3) to oldest (snapshot1),
+    verifying at each step that the data on disk matches the expected state.
+    """
+
+    # -------------------------
+    # Setup: Attach, format, mount volume, initial file, snapshot1
+    # -------------------------
+    volume.attach(server)
+    time.sleep(5)
+    server.assert_run('sudo mkfs.ext4 /dev/sdb')
+    server.assert_run('sudo mount /dev/sdb /mnt')
+
+    # Create 'before-snapshot-1'.
+    server.assert_run(
+        'sudo dd if=/dev/zero of=/mnt/before-snapshot-1 '
+        'count=1 bs=1M conv=fsync')
+
+    # Create snapshot1
+    snapshot1 = volume.snapshot('snap1')
+
+    # -------------------------
+    # Create Snapshot2: Add "after-snapshot-1"
+    # -------------------------
+    # Create file 'after-snapshot-1'
+    server.assert_run(
+        'sudo dd if=/dev/zero of=/mnt/after-snapshot-1'
+        'count=1 bs=1M conv=fsync')
+    snapshot2 = volume.snapshot('snap2')
+
+    # -------------------------
+    # Create Snapshot3: Add "after-snapshot-2"
+    # -------------------------
+    server.assert_run(
+        'sudo dd if=/dev/zero of=/mnt/after-snapshot-2'
+        'count=1 bs=1M conv=fsync')
+
+    # Create snapshot3
+    snapshot3 = volume.snapshot('snap3')
+
+    # -------------------------
+    # Delete all files and detach
+    # -------------------------
+    server.assert_run('sudo rm /mnt/before* /mnt/after*')
+    assert not server.file_path_exists('/mnt/before-snapshot-1')
+    assert not server.file_path_exists('/mnt/after-snapshot-1')
+    assert not server.file_path_exists('/mnt/after-snapshot-2')
+
+    # Unmount and detach
+    server.assert_run('sudo umount /mnt')
+    volume.detach()
+
+    # -------------------------
+    # Revert snapshots from newest to oldest and verify state at each step.
+    # -------------------------
+
+    # Revert to Snapshot3: Expect "after-snapshot-1" and "after-snapshot-2"
+    volume.revert(snapshot3)
+    volume.attach(server)
+    time.sleep(5)
+    server.assert_run('sudo mount /dev/sdb /mnt')
+
+    # Verify that initial files and both additional files exist
+    assert server.file_path_exists('/mnt/before-snapshot-1')
+    assert server.file_path_exists('/mnt/after-snapshot-1')
+    assert server.file_path_exists('/mnt/after-snapshot-2')
+
+    server.assert_run('sudo umount /mnt')
+    volume.detach()
+    time.sleep(5)
+
+    # Revert to Snapshot2: Expect only "after-snapshot-1"
+    volume.api.delete(snapshot3['href'])
+    time.sleep(5)
+
+    volume.revert(snapshot2)
+    volume.attach(server)
+    time.sleep(5)
+    server.assert_run('sudo mount /dev/sdb /mnt')
+
+    # Verify that the "after-snapshot-2" file is removed
+    assert server.file_path_exists('/mnt/before-snapshot-1')
+    assert server.file_path_exists('/mnt/after-snapshot-1')
+    assert not server.file_path_exists('/mnt/after-snapshot-2')
+
+    server.assert_run('sudo umount /mnt')
+    volume.detach()
+    time.sleep(5)
+
+    # Revert to Snapshot1: Expect only initial file
+    volume.api.delete(snapshot2['href'])
+    time.sleep(5)
+
+    volume.revert(snapshot1)
+    volume.attach(server)
+    time.sleep(5)
+    server.assert_run('sudo mount /dev/sdb /mnt')
+
+    # Verify that none of the additional files exist
+    assert server.file_path_exists('/mnt/before-snapshot-1')
+    assert not server.file_path_exists('/mnt/after-snapshot-1')
+    assert not server.file_path_exists('/mnt/after-snapshot-2')
+
+    server.assert_run('sudo umount /mnt')
+    volume.detach()

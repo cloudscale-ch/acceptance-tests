@@ -226,6 +226,11 @@ def implemented_tests_table(c):
     headers = ['Category', 'Test Name', 'Images']
     rows = []
 
+    # Exclude certain files from the table
+    exclude_list = [
+        'test_infrastructure.py'
+    ]
+
     # Special cases for capitalizing test category titles
     category_capitalization = {
         'floating ip': 'Floating IP',
@@ -233,6 +238,10 @@ def implemented_tests_table(c):
     }
 
     for module_path in sorted(Path('.').glob('test_*.py')):
+        # Exclude certain files from the table
+        if module_path.name in exclude_list:
+            continue
+
         module = importlib.import_module(module_path.stem)
         cat = module_path.stem.replace('test_', '').replace('_', ' ')
         cat = category_capitalization.get(cat, cat.title())

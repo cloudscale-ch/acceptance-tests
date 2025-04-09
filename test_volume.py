@@ -381,116 +381,97 @@ def test_snapshot_root_volume(create_server):
         )
 
 
-def test_multiple_snapshot_volume_attached(server, volume):
+def test_snapshots_in_multiple_steps(server, volume):
+    """ Volumes can be snapshotted and reverted in multiple steps.
+
+    The test creates snapshots, whilst creating evidence as follows:
+    - /mnt/snapshot-<n>-before
+    - /mnt/snapshot-<n>-created
+
+    It then reverts these snapshots in reverse order, from newest to oldest,
+    verifying that the evidence on the disk matches expectations.
+
     """
-    Volumes can be snapshotted and reverted in multiple steps.
 
-    The test creates three snapshots:
-      - Snapshot1: initial state with 'before-snapshot-1'
-      - Snapshot2: after creating 'after-snapshot-1'.
-      - Snapshot3: after creating 'after-snapshot-2'.
-
-    The volume is then reverted from newest (snapshot3) to oldest (snapshot1),
-    verifying at each step that the data on disk matches the expected state.
-    """
-
-    # -------------------------
-    # Setup: Attach, format, mount volume, initial file, snapshot1
-    # -------------------------
+    # Prepare the volume
     volume.attach(server)
     time.sleep(5)
+
     server.assert_run('sudo mkfs.ext4 /dev/sdb')
     server.assert_run('sudo mount /dev/sdb /mnt')
 
-    # Create 'before-snapshot-1'.
-    server.assert_run(
-        'sudo dd if=/dev/zero of=/mnt/before-snapshot-1 '
-        'count=1 bs=1M conv=fsync')
+    # Function to create snapshots with evidence
+    def create_snapshot(n):
+        server.assert_run(f'sudo touch /mnt/snapshot-{n}-before && sync')
+        snapshot = volume.snapshot(f'snap-{n}')
+        server.assert_run(f'sudo touch /mnt/snapshot-{n}-created && sync')
+        return snapshot
 
-    # Create snapshot1
-    snapshot1 = volume.snapshot('snap1')
+    # Create three snapshots
+    snapshots = []
 
-    # -------------------------
-    # Create Snapshot2: Add "after-snapshot-1"
-    # -------------------------
-    # Create file 'after-snapshot-1'
-    server.assert_run(
-        'sudo dd if=/dev/zero of=/mnt/after-snapshot-1'
-        'count=1 bs=1M conv=fsync')
-    snapshot2 = volume.snapshot('snap2')
+    for index in range(3):
+        snapshots.append(create_snapshot(index + 1))
 
-    # -------------------------
-    # Create Snapshot3: Add "after-snapshot-2"
-    # -------------------------
-    server.assert_run(
-        'sudo dd if=/dev/zero of=/mnt/after-snapshot-2'
-        'count=1 bs=1M conv=fsync')
+    # Gather final evidence
+    evidence = [server.output_of('ls -1 /mnt/snapshot-*')]
 
-    # Create snapshot3
-    snapshot3 = volume.snapshot('snap3')
+    # Erase all evidence
+    server.assert_run('sudo rm /mnt/snapshot-*')
+    assert server.output_of('ls -1 /mnt/snapshot-* | wc -l') == "0"
 
-    # -------------------------
-    # Delete all files and detach
-    # -------------------------
-    server.assert_run('sudo rm /mnt/before* /mnt/after*')
-    assert not server.file_path_exists('/mnt/before-snapshot-1')
-    assert not server.file_path_exists('/mnt/after-snapshot-1')
-    assert not server.file_path_exists('/mnt/after-snapshot-2')
+    # Revert snapshots from latest to earliest
+    for snapshot in reversed(snapshots):
+
+        # To revert a snapshot, the volume needs to be detached
+        server.assert_run('sudo umount /mnt')
+        volume.detach()
+
+        # Revert the snapshot and mount it
+        volume.revert(snapshot)
+
+        volume.attach(server)
+        time.sleep(5)
+
+        server.assert_run('sudo mount /dev/sdb /mnt')
+
+        # List the snapshot evidence
+        evidence.insert(0, server.output_of('ls -1 /mnt/snapshot-*'))
+
+        # Delete the snapshot
+        volume.api.delete(snapshot['href'])
+
+    # The evidence, before snapshots were restored
+    assert evidence.pop().splitlines() == [
+        '/mnt/snapshot-1-before',
+        '/mnt/snapshot-1-created',
+        '/mnt/snapshot-2-before',
+        '/mnt/snapshot-2-created',
+        '/mnt/snapshot-3-before',
+        '/mnt/snapshot-3-created',
+    ]
+
+    # After the third snapshot was restored
+    assert evidence.pop().splitlines() == [
+        '/mnt/snapshot-1-before',
+        '/mnt/snapshot-1-created',
+        '/mnt/snapshot-2-before',
+        '/mnt/snapshot-2-created',
+        '/mnt/snapshot-3-before',
+    ]
+
+    # After the second snapshot was restored
+    assert evidence.pop().splitlines() == [
+        '/mnt/snapshot-1-before',
+        '/mnt/snapshot-1-created',
+        '/mnt/snapshot-2-before',
+    ]
+
+    # After the first snapshot was restored
+    assert evidence.pop().splitlines() == [
+        '/mnt/snapshot-1-before',
+    ]
 
     # Unmount and detach
-    server.assert_run('sudo umount /mnt')
-    volume.detach()
-
-    # -------------------------
-    # Revert snapshots from newest to oldest and verify state at each step.
-    # -------------------------
-
-    # Revert to Snapshot3: Expect "after-snapshot-1" and "after-snapshot-2"
-    volume.revert(snapshot3)
-    volume.attach(server)
-    time.sleep(5)
-    server.assert_run('sudo mount /dev/sdb /mnt')
-
-    # Verify that initial files and both additional files exist
-    assert server.file_path_exists('/mnt/before-snapshot-1')
-    assert server.file_path_exists('/mnt/after-snapshot-1')
-    assert server.file_path_exists('/mnt/after-snapshot-2')
-
-    server.assert_run('sudo umount /mnt')
-    volume.detach()
-    time.sleep(5)
-
-    # Revert to Snapshot2: Expect only "after-snapshot-1"
-    volume.api.delete(snapshot3['href'])
-    time.sleep(5)
-
-    volume.revert(snapshot2)
-    volume.attach(server)
-    time.sleep(5)
-    server.assert_run('sudo mount /dev/sdb /mnt')
-
-    # Verify that the "after-snapshot-2" file is removed
-    assert server.file_path_exists('/mnt/before-snapshot-1')
-    assert server.file_path_exists('/mnt/after-snapshot-1')
-    assert not server.file_path_exists('/mnt/after-snapshot-2')
-
-    server.assert_run('sudo umount /mnt')
-    volume.detach()
-    time.sleep(5)
-
-    # Revert to Snapshot1: Expect only initial file
-    volume.api.delete(snapshot2['href'])
-    time.sleep(5)
-
-    volume.revert(snapshot1)
-    volume.attach(server)
-    time.sleep(5)
-    server.assert_run('sudo mount /dev/sdb /mnt')
-
-    # Verify that none of the additional files exist
-    assert server.file_path_exists('/mnt/before-snapshot-1')
-    assert not server.file_path_exists('/mnt/after-snapshot-1')
-    assert not server.file_path_exists('/mnt/after-snapshot-2')
-
     server.assert_run('sudo umount /mnt')
     volume.detach()

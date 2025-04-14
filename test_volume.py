@@ -379,3 +379,99 @@ def test_snapshot_root_volume(create_server):
             'File "not-synced" is included in the snapshot although it was '
             'not explicitly synced.',
         )
+
+
+def test_snapshots_in_multiple_steps(server, volume):
+    """ Volumes can be snapshotted and reverted in multiple steps.
+
+    The test creates snapshots, whilst creating evidence as follows:
+    - /mnt/snapshot-<n>-before
+    - /mnt/snapshot-<n>-created
+
+    It then reverts these snapshots in reverse order, from newest to oldest,
+    verifying that the evidence on the disk matches expectations.
+
+    """
+
+    # Prepare the volume
+    volume.attach(server)
+    time.sleep(5)
+
+    server.assert_run('sudo mkfs.ext4 /dev/sdb')
+    server.assert_run('sudo mount /dev/sdb /mnt')
+
+    # Function to create snapshots with evidence
+    def create_snapshot(n):
+        server.assert_run(f'sudo touch /mnt/snapshot-{n}-before && sync')
+        snapshot = volume.snapshot(f'snap-{n}')
+        server.assert_run(f'sudo touch /mnt/snapshot-{n}-created && sync')
+        return snapshot
+
+    # Create three snapshots
+    snapshots = []
+
+    for index in range(3):
+        snapshots.append(create_snapshot(index + 1))
+
+    # Gather final evidence
+    evidence = [server.output_of('ls -1 /mnt/snapshot-*')]
+
+    # Erase all evidence
+    server.assert_run('sudo rm /mnt/snapshot-*')
+    assert server.output_of('ls -1 /mnt/snapshot-* | wc -l') == "0"
+
+    # Revert snapshots from latest to earliest
+    for snapshot in reversed(snapshots):
+
+        # To revert a snapshot, the volume needs to be detached
+        server.assert_run('sudo umount /mnt')
+        volume.detach()
+
+        # Revert the snapshot and mount it
+        volume.revert(snapshot)
+
+        volume.attach(server)
+        time.sleep(5)
+
+        server.assert_run('sudo mount /dev/sdb /mnt')
+
+        # List the snapshot evidence
+        evidence.insert(0, server.output_of('ls -1 /mnt/snapshot-*'))
+
+        # Delete the snapshot
+        volume.api.delete(snapshot['href'])
+
+    # The evidence, before snapshots were restored
+    assert evidence.pop().splitlines() == [
+        '/mnt/snapshot-1-before',
+        '/mnt/snapshot-1-created',
+        '/mnt/snapshot-2-before',
+        '/mnt/snapshot-2-created',
+        '/mnt/snapshot-3-before',
+        '/mnt/snapshot-3-created',
+    ]
+
+    # After the third snapshot was restored
+    assert evidence.pop().splitlines() == [
+        '/mnt/snapshot-1-before',
+        '/mnt/snapshot-1-created',
+        '/mnt/snapshot-2-before',
+        '/mnt/snapshot-2-created',
+        '/mnt/snapshot-3-before',
+    ]
+
+    # After the second snapshot was restored
+    assert evidence.pop().splitlines() == [
+        '/mnt/snapshot-1-before',
+        '/mnt/snapshot-1-created',
+        '/mnt/snapshot-2-before',
+    ]
+
+    # After the first snapshot was restored
+    assert evidence.pop().splitlines() == [
+        '/mnt/snapshot-1-before',
+    ]
+
+    # Unmount and detach
+    server.assert_run('sudo umount /mnt')
+    volume.detach()

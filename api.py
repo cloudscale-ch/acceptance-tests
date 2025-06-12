@@ -140,9 +140,6 @@ class API(requests.Session):
                 and e.response.status_code == 404
 
             if not ignore:
-                print(f"{e.request.method} {e.request.url} failed:")
-                print(e.response.text)
-
                 raise e
 
     def request(self, method, url, *args, **kwargs):

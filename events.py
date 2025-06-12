@@ -223,6 +223,8 @@ track_in_event_log('request.after', include={
     'event': lambda a: f'request.{a.request.method}',
     'url': 'request.url',
     'status': 'response.status_code',
+    'body': lambda a: a.response.text if not a.response.ok
+    else '<suppressed>',
     'took': lambda a: a.response.elapsed.total_seconds(),
     'retries': lambda a: len(a.response.raw.retries.history),
     'history': lambda a: [r.status for r in a.response.raw.retries.history],

@@ -1,5 +1,6 @@
 import atexit
 import os
+import pytest
 import re
 import socket
 import time
@@ -31,6 +32,7 @@ from paramiko.ssh_exception import NoValidConnectionsError
 from paramiko.ssh_exception import SSHException
 from pathlib import Path
 from psutil import Process
+from requests.exceptions import HTTPError
 from testinfra.backend.paramiko import ParamikoBackend
 from types import SimpleNamespace
 from typing import Generator
@@ -787,3 +789,33 @@ def extract_short_error(longrepr):
             break
 
     return prev and prev[1:].strip() or prev
+
+
+@contextmanager
+def skip_test_when(match, reason=None):
+    """ Wraps a block of code and skips the test with the given reason, if
+    an exception occurs whose string contains the given "match".
+
+    By default, if no reason is given, it equals the match string.
+
+    If there is a match, pytest.skip raises an exception that causes pytest
+    to show the test as skipped. If there is none, the exception is re-raised
+    as-is.
+
+    """
+
+    reason = reason or match
+
+    try:
+        yield
+    except HTTPError as e:
+        if match in str(e) or match in e.response.text:
+            pytest.skip(reason)
+
+        raise
+
+    except Exception as e:
+        if match in str(e):
+            pytest.skip(reason)
+
+        raise

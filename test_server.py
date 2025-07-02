@@ -10,9 +10,12 @@ at any time.
 API Docs: https://www.cloudscale.ch/en/api/v1
 
 """
+import secrets
+import textwrap
 
 from util import extract_number
 from util import oneliner
+from util import skip_test_when
 
 
 def test_change_flavor_from_flex_to_flex(create_server):
@@ -284,3 +287,36 @@ def test_metadata_on_all_images(server):
     # We can find the same information on the metadata service
     assert server.uuid in server.http_get(
         'http://169.254.169.254/openstack/latest/meta_data.json')
+
+
+def test_cloud_init_password_on_all_images(create_server):
+    """ Using cloud-init, we can set the password of the default user. """
+
+    # Generate a password unique to this test
+    password = secrets.token_hex(16)
+
+    # When using a password, the cloud-init config defaults to expire the
+    # password upon first login. We override that here, to make testing
+    # easier.
+    user_data = textwrap.dedent("""
+        #cloud-config
+        chpasswd:
+          expire: false
+    """)
+
+    # Create a server with the given password, if the image supports it
+    with skip_test_when("This image does not support password logins."):
+        server = create_server(
+            flavor='flex-4-1',
+            password=password,
+            user_data=user_data,
+        )
+
+    # To verify that the password was set, try and change it to a new
+    # password, using the existing one
+    new_password = secrets.token_hex(16)
+
+    server.assert_run(oneliner(f"""
+        echo -e "{password}\\n{new_password}\\n{new_password}"
+        | passwd
+    """))

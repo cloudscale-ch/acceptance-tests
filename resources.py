@@ -698,7 +698,15 @@ class Server(CloudscaleResource):
         return self.host.interface(self.nth_interface_name(1))
 
     def ip_address_config(self, iface_type, ip_version, network=None):
-        for interface in self.interfaces:
+
+        # If the server object does not have an interace config (i.e., when the
+        # server was not successfully launched), we return None.
+        try:
+            interfaces = self.interfaces
+        except AttributeError:
+            return None
+
+        for interface in interfaces:
             if network and not interface['network']['uuid'] == network:
                 continue
 

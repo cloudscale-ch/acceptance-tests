@@ -163,18 +163,37 @@ def summary(c):
 
     results.sort(key=lambda e: e['time'])
 
+    # List of possible test outcomes
+    known_outcomes = {'passed', 'failed', 'skipped', 'xfailed', 'xpassed'}
+
     # Gather statistics
     successes = sum(
         1 for r in results
         if r['outcome'] == 'passed' and r['run'] == 1)
 
+    skipped = sum(
+        1 for r in results
+        if r['outcome'] == 'skipped' and r['run'] == 1)
+
     reruns = [
         r for r in results
         if r['outcome'] == 'passed' and r['run'] != 1]
 
-    failures = [
-        r for r in results
-        if r['outcome'] != 'passed' and r['run'] == maxrun]
+    failures = sum(
+        1 for r in results
+        if r['outcome'] == 'failed' and r['run'] == maxrun)
+
+    xfailed = sum(
+        1 for r in results
+        if r['outcome'] == 'xfailed' and r['run'] == maxrun)
+
+    xpassed = sum(
+        1 for r in results
+        if r['outcome'] == 'xpassed' and r['run'] == maxrun)
+
+    unknowns = sum(
+        1 for r in results
+        if r['outcome'] not in known_outcomes)
 
     maintenance_retries = sum(
         sum(1 for status in r['history'] if status == 503)
@@ -187,6 +206,18 @@ def summary(c):
     if successes:
         print(f"✅ {successes} tests passed on the first try.\n")
 
+    if skipped:
+        print(f"ℹ️ {skipped} tests were skipped.\n")
+
+    if xfailed:
+        print(f"🥹‍ {xfailed} tests failed as expected (XFAIL).\n")
+
+    if xpassed:
+        print(f"‍🤨 {xpassed} tests passed unexpectedly (XPASS).\n")
+
+    if unknowns:
+        print(f"🛸 {unknowns} tests had an unknown outcome.\n")
+
     if reruns and maxrun == 2:
         print(f"⚠️ {len(reruns)} passed after a rerun.\n")
 
@@ -198,22 +229,34 @@ def summary(c):
 
     if maintenance_retries:
         print(
-            f"🚧 A total of {maintenance_retries} requests have been retried "
+            f"🚧 A total of {maintenance_retries} requests were retried "
             "due to API maintenance.\n"
         )
 
-    if reruns or failures:
-        print("## Failures")
+    if any(r['outcome'] != 'passed' or r['run'] != 1 for r in results):
+        print("## Detailed Results")
         print("")
 
-        for failed in (r for r in results if r['error']):
+        for r in results:
+            if r['outcome'] == 'passed' and r['run'] == 1:
+                continue  # Skip tests that passed cleanly
+
             print('<details><summary><code>', end='')
-            print(f"{failed['test']}: {failed['short_error']}", end='')
+            test_name = r.get('test', 'UnknownTest')
+            short_error = r.get('short_error') or f"{r['outcome']}"
+            print(f"{test_name}: {short_error}", end='')
             print('</code></summary>')
             print('')
-            print('```python')
-            print(failed['error'])
-            print('```')
+
+            # Full error block, if available
+            full_error = r.get('error')
+            if full_error:
+                print('```python')
+                print(full_error)
+                print('```')
+            else:
+                print(f"`{r['outcome']}` (detailed result unavailable)")
+
             print('')
             print('</details>')
             print('')

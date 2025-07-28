@@ -176,7 +176,7 @@ def summary(c):
         if r['outcome'] == 'skipped' and r['run'] == 1)
 
     reruns = [
-        r for r in results
+        1 for r in results
         if r['outcome'] == 'passed' and r['run'] != 1]
 
     failures = sum(
@@ -219,13 +219,13 @@ def summary(c):
         print(f"🛸 {unknowns} tests had an unknown outcome.\n")
 
     if reruns and maxrun == 2:
-        print(f"⚠️ {len(reruns)} passed after a rerun.\n")
+        print(f"⚠️ {reruns} passed after a rerun.\n")
 
     if reruns and maxrun > 2:
-        print(f"⚠️ {len(reruns)} passed after multiple reruns.\n")
+        print(f"⚠️ {reruns} passed after multiple reruns.\n")
 
     if failures:
-        print(f"⛔️ {len(failures)} did not pass at all.\n")
+        print(f"⛔️ {failures} did not pass at all.\n")
 
     if maintenance_retries:
         print(

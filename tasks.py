@@ -175,9 +175,9 @@ def summary(c):
         1 for r in results
         if r['outcome'] == 'skipped' and r['run'] == 1)
 
-    reruns = [
+    reruns = sum(
         1 for r in results
-        if r['outcome'] == 'passed' and r['run'] != 1]
+        if r['outcome'] == 'passed' and r['run'] != 1)
 
     failures = sum(
         1 for r in results

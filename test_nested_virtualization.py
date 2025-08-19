@@ -56,7 +56,7 @@ def test_run_nested_vm(server):
     # Make sure qemu tests pass and rc == 0
     assert server.output_of('sudo virt-host-validate --help')
 
-    server.run(f'wget {vm_iso_url}')
+    server.run(f'wget {vm_iso_url} -O /var/tmp/{vm_os}.qcow2')
     server.run('sudo virsh net-start default')
     server.run('sudo virsh net-autostart default')
 
@@ -66,7 +66,7 @@ def test_run_nested_vm(server):
             --name {vm_os}_vm
             --ram 1024
             --vcpus=1
-            --disk path={vm_os}.qcow2,format=qcow2,bus=virtio
+            --disk path=/var/tmp/{vm_os}.qcow2,format=qcow2,bus=virtio
             --autoconsole none
             --os-variant generic
             --hvm

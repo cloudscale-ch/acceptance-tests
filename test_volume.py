@@ -332,7 +332,7 @@ def test_snapshot_root_volume(create_server):
 
     """
 
-    server = create_server(image='debian-12')
+    server = create_server(image='debian-13')
     volume = server.root_volume
 
     # Sync everything written during boot to disk (eg. SSH host keys)

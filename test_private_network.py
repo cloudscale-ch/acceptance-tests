@@ -421,6 +421,9 @@ def test_private_network_dhcp_dns_replies(server, private_network):
 
     assert server.private_interface.exists
 
+    server.assert_run('sudo apt-get update')
+    server.assert_run('sudo apt-get install -y isc-dhcp-client')
+
     # No DHCP reply sets a search domain
     reply = server.dhcp_reply(server.public_interface.name, ip_version=4)
     assert "domain-search" not in reply

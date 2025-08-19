@@ -593,8 +593,15 @@ class Server(CloudscaleResource):
         else:
             address = ip
 
-        key = self.output_of(
+        output = self.output_of(
             f'ssh-keyscan -t ed25519 {address} | cut -d " " -f 2-3')
+
+        key = next(
+            (
+                line for line in output.splitlines()
+                if line.startswith('ssh-ed25519')
+            ), None
+        )
 
         if not key:
             return None

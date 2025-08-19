@@ -1,3 +1,4 @@
+import re
 import secrets
 import textwrap
 import tempfile
@@ -365,10 +366,15 @@ class Server(CloudscaleResource):
     def wait_for_ipv6_default_route(self, timeout=30):
         until = datetime.utcnow() + timedelta(seconds=timeout)
 
+        # Match the legacy output, as well as the more modern next-hop id way:
+        # - modern: default nhid 0123456789 via fe80::1 dev
+        # - legacy: default via fe80::1
+        route = re.compile(r'(default nhid \w+|default) via fe80::1 dev')
+
         while datetime.utcnow() <= until:
             ipv6_routes = self.output_of('sudo ip -6 route')
 
-            if 'default via fe80::1 dev' in ipv6_routes:
+            if route.search(ipv6_routes):
                 return
 
             time.sleep(1)

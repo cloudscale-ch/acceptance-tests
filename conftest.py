@@ -72,7 +72,7 @@ def pytest_addoption(parser):
     parser.addoption(
         '--default-image',
         action='store',
-        default='debian-12',
+        default='debian-13',
         help='Default image slug to use for tests',
     )
 
@@ -423,7 +423,7 @@ def prober(create_server_for_session):
     """ Server acting as a jump-host for servers without public IP address. """
 
     return create_server_for_session(
-        image='debian-12', use_private_network=True)
+        image='debian-13', use_private_network=True)
 
 
 @pytest.fixture(scope='function')

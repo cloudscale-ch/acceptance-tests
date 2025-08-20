@@ -176,9 +176,7 @@ with http.server.ThreadingHTTPServer(
     print(f'LBaaS test HTTP server running on '
           f'{":".join(map(str, server.server_address))}')
     if args.ssl:
-        server.socket = ssl.wrap_socket(
-            server.socket,
-            certfile='./server.pem',
-            server_side=True,
-        )
+        context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        context.load_cert_chain('./server.pem')
+        server.socket = context.wrap_socket(server.socket, server_side=True)
     server.serve_forever()

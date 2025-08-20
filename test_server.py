@@ -13,9 +13,9 @@ API Docs: https://www.cloudscale.ch/en/api/v1
 import secrets
 import textwrap
 
+from requests.exceptions import HTTPError
 from util import extract_number
 from util import oneliner
-from util import skip_test_when
 
 
 def test_change_flavor_from_flex_to_flex(create_server):
@@ -305,12 +305,17 @@ def test_cloud_init_password_on_all_images(create_server):
     """)
 
     # Create a server with the given password, if the image supports it
-    with skip_test_when("This image does not support password logins."):
+    try:
         server = create_server(
             flavor='flex-4-1',
             password=password,
             user_data=user_data,
         )
+    except HTTPError as e:
+        if 'This image does not support password login' in e.response.text:
+            return
+
+        raise
 
     # To verify that the password was set, try and change it to a new
     # password, using the existing one

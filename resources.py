@@ -352,15 +352,21 @@ class Server(CloudscaleResource):
         address = str(self.ip('public', 6))
         until = datetime.utcnow() + timedelta(seconds=timeout)
 
-        while datetime.utcnow() <= until:
-            preferred = self.output_of('sudo ip a | grep -v tentative')
+        preferred = re.compile(
+            fr'^\s+inet6 {address}/[1-9][0-9]{{1,2}} scope global'
+            fr'(?!.+(tentative|deprecated))')
 
-            if address in preferred:
-                return
+        while datetime.utcnow() <= until:
+            output = self.output_of('sudo ip a')
+
+            for line in output.splitlines():
+                if preferred.match(line):
+                    return
 
             time.sleep(1)
 
-        raise Timeout('Wait for non-tentative IPv6 timed-out')
+        raise Timeout(
+            f'Wait for non-tentative IPv6 timed-out. Last output: {output}')
 
     @with_trigger('server.wait-for-ipv6-default-route')
     def wait_for_ipv6_default_route(self, timeout=30):

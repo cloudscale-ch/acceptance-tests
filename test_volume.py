@@ -151,11 +151,11 @@ def test_expand_filesystem_on_boot_on_common_images(create_server, image):
 
 
 def test_maximum_number_of_volumes(server, create_volume):
-    """ It is possible to attach up to 128 additional volumes to a server.
+    """ It is possible to attach up to 128 volumes to a server.
 
     """
 
-    # Attach 127 volumes to the server (1 is already attached)
+    # Attach 127 additional volumes to the server (1 is already attached)
     for _ in range(127):
         volume = create_volume(size=10, volume_type="ssd")
         volume.attach(server)

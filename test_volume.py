@@ -475,3 +475,78 @@ def test_snapshots_in_multiple_steps(server, volume):
     # Unmount and detach
     server.assert_run('sudo umount /mnt')
     volume.detach()
+
+
+def test_volume_from_snapshot(server, volume, create_volume):
+    """ Snapshots of volumes can be used as the basis for a new volume.
+
+    This way, a previously created snapshot can be mounted and inspected.
+
+    """
+
+    # Attach volume to server and format
+    volume.attach(server)
+    time.sleep(5)
+
+    server.assert_run('sudo mkfs.ext4 /dev/sdb')
+    server.assert_run('sudo mount /dev/sdb /mnt')
+
+    # Write and sync data to the volume
+    server.assert_run('echo "data" | sudo dd of=/mnt/included')
+    server.assert_run('sync')
+
+    # Create a snapshot
+    snapshot = volume.snapshot('snap')
+
+    # Write a second file after creating the snapshot
+    server.assert_run('echo "data" | sudo dd of=/mnt/excluded')
+    server.assert_run('sync')
+
+    # Create a new volume from snapshot
+    copy = create_volume(volume_snapshot_uuid=snapshot['uuid'])
+
+    # Remove the original snapshot and the volume
+    server.assert_run('sudo umount /mnt')
+    volume.detach()
+    volume.api.delete(snapshot['href'])
+    volume.delete()
+
+    # Verify the data on the volume created from the deleted snapshot
+    copy.attach(server)
+    server.assert_run('sudo mount /dev/sdb /mnt')
+
+    assert server.output_of('cat /mnt/included') == "data"
+
+    # The file created after the snapshot must be missing
+    server.assert_run('! test -e /mnt/excluded')
+
+
+def test_volume_from_root_snapshot(server, create_server, create_volume):
+    """ Snapshots of root volumes can be mounted after the server they
+    belonged to has been destroyed.
+
+    """
+
+    # Write data on the server
+    server.assert_run('echo "data" | sudo dd of=/var/lib/data')
+    server.assert_run('sync')
+
+    # Create a snapshot
+    volume = server.root_volume
+    snapshot = volume.snapshot('snap')
+
+    # Create a new volume from snapshot
+    copy = create_volume(volume_snapshot_uuid=snapshot['uuid'])
+
+    # Delete the original snapshot and server
+    volume.api.delete(snapshot['href'])
+    server.delete()
+
+    # Create a new server and attach the additional volume
+    server = create_server()
+    copy.attach(server)
+    time.sleep(5)
+
+    # Ensure the data is there
+    server.assert_run('sudo mount /dev/sdb1 /mnt')
+    assert server.output_of('cat /mnt/var/lib/data') == "data"

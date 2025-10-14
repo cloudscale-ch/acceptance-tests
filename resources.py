@@ -1057,15 +1057,31 @@ class FloatingIP(CloudscaleResource):
 
 class Volume(CloudscaleResource):
 
-    def __init__(self, request, api, size, zone, volume_type='ssd'):
+    def __init__(
+        self,
+        request,
+        api,
+        size=None,
+        zone=None,
+        volume_type='ssd',
+        volume_snapshot_uuid=None,
+    ):
         super().__init__(request, api)
 
-        self.spec = {
-            'name': f'{RESOURCE_NAME_PREFIX}-{uuid4().hex[:8]}',
-            'size_gb': size,
-            'type': volume_type,
-            'zone': zone
-        }
+        name = f'{RESOURCE_NAME_PREFIX}-{uuid4().hex[:8]}'
+
+        if volume_snapshot_uuid:
+            self.spec = {
+                'name': name,
+                'volume_snapshot_uuid': volume_snapshot_uuid,
+            }
+        else:
+            self.spec = {
+                'name': name,
+                'size_gb': size,
+                'type': volume_type,
+                'zone': zone
+            }
 
     @with_trigger('volume.create')
     def create(self):

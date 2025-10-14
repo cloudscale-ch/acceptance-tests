@@ -233,14 +233,13 @@ def summary(c):
             "due to API maintenance.\n"
         )
 
-    if any(r['outcome'] != 'passed' or r['run'] != 1 for r in results):
+    detailed_results = [r for r in results if r['outcome'] != 'passed']
+
+    if detailed_results:
         print("## Detailed Results")
         print("")
 
-        for r in results:
-            if r['outcome'] == 'passed' and r['run'] == 1:
-                continue  # Skip tests that passed cleanly
-
+        for r in detailed_results:
             print('<details><summary><code>', end='')
             test_name = r.get('test', 'UnknownTest')
             short_error = r.get('short_error') or f"{r['outcome']}"

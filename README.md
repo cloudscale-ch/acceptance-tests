@@ -81,6 +81,8 @@ These tests are run regularly against our public infrastructure as well as our i
 |                           | [test_snapshot_volume_detached](./test_volume.py#L251)                           | default  |
 |                           | [test_snapshot_root_volume](./test_volume.py#L324)                               | default  |
 |                           | [test_snapshots_in_multiple_steps](./test_volume.py#L384)                        | default  |
+|                           | [test_volume_from_snapshot](./test_volume.py#L480)                               | default  |
+|                           | [test_volume_from_root_snapshot](./test_volume.py#L524)                          | default  |
 
 ## Warning
 

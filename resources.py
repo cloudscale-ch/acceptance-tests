@@ -1138,10 +1138,10 @@ class Volume(CloudscaleResource):
 
         end = datetime.now() + timedelta(seconds=timeout)
         while datetime.now() < end:
+            self.refresh()
             if self.current_operation is None:
                 break
 
-            self.refresh()
             time.sleep(1)
 
         else:

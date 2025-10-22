@@ -9,7 +9,7 @@ You can create, modify and delete TCP load balancers.
 import pytest
 
 from time import sleep
-from util import build_http_url
+from util import build_http_url, setup_lbaas_udp_test_server
 from util import get_backends_for_request
 from util import in_parallel
 from util import RESOURCE_NAME_PREFIX
@@ -45,6 +45,36 @@ def test_simple_tcp_load_balancer(prober, create_load_balancer_scenario):
     assert 'Backend server running on' in content
 
 
+def test_simple_udp_load_balancer(prober, create_load_balancer_scenario):
+    """ Create a simple UDP load balancer with one backend. """
+
+    # Create a load balancer setup with one backend on a private network
+    load_balancer, listener, pool, backends, private_network = \
+        create_load_balancer_scenario(
+            num_backends=1,
+            algorithm='round_robin',
+            port=80,
+            pool_protocol='udp',
+            listener_protocol='udp',
+            ssl=False,
+            health_monitor_type=None,
+            allowed_cidrs=None,
+        )
+
+    backend, = backends
+
+    def assert_udp_response():
+        assert (f'Backend server running on {backend.name} {backend.uuid}.'
+                == prober.udp_get(load_balancer.vip(4), 80))
+
+    # Test if the load balancer works on IPv4
+    # Due to the nature of UDP we allow multiple retries
+    retry_for(seconds=20).or_fail(
+        assert_udp_response,
+        msg='No response from UDP load balancer on IPv4',
+    )
+
+
 def test_load_balancer_end_to_end(prober, create_load_balancer_scenario):
     """ Multi backend load balancer end-to-end test scenario.
 
@@ -76,6 +106,47 @@ def test_load_balancer_end_to_end(prober, create_load_balancer_scenario):
 
     # Assert logs on both backend servers show they received traffic
     assert unique(backends) == unique(get_backends_for_request(backends))
+
+    # Repeat tests with UDP
+
+    # Setup UDP test servers on both backends
+    for backend in backends:
+        setup_lbaas_udp_test_server(backend)
+
+    # Create UDP pool for the load balancer
+    udp_pool = load_balancer.add_pool(f'lb-udp-pool', 'round_robin', 'udp')
+
+    # Add backend members to the UDP pool
+    for backend in backends:
+        load_balancer.add_pool_member(udp_pool, backend, private_network)
+
+    # Add UDP listener on port 80
+    load_balancer.add_listener(udp_pool, 80, protocol='udp')
+
+    # Wait until the load balancer is operational
+    wait_for_load_balancer_ready(load_balancer, prober,
+                                 port=80, timeout=30, protocol='udp')
+
+    # Issue 10 UDP requests to the load balancer
+    udp_responses_ipv4 = []
+
+    for i in range(10):
+        response = prober.udp_get(load_balancer.vip(4), 80)
+        assert 'Backend server running on' in response
+        udp_responses_ipv4.append(response)
+
+    # Extract unique backend names from UDP responses
+    def extract_backend_names(responses):
+        return {
+            backend.name
+            for response in responses
+            for backend in backends
+            if backend.name in response
+        }
+
+    # Assert both backends received UDP traffic on IPv4
+    assert len(extract_backend_names(udp_responses_ipv4)) == len(backends), \
+        "Not all backends received UDP traffic on IPv4"
 
 
 def test_multiple_listeners(prober, create_load_balancer_scenario):
@@ -546,12 +617,9 @@ def test_floating_ip_reassign(prober, create_load_balancer_scenario,
 
     """
 
-    def check_content(url, content):
-        assert prober.http_get(url) == content
-
     # Create two load balancer setups with one backend each
     ((load_balancer1, listener1, pool1, (backend1, ), private_network1),
-     (load_balancer2, listener1, pool2, (backend2, ), private_network2)) = \
+     (load_balancer2, listener2, pool2, (backend2, ), private_network2)) = \
         in_parallel(create_load_balancer_scenario,
                     [{'name': 'lb1',
                       'num_backends': 1,
@@ -618,6 +686,51 @@ def test_floating_ip_reassign(prober, create_load_balancer_scenario,
 
     # Check if the Floating IP is reachable (wait up to 15 seconds)
     prober.ping(floating_ipv4, count=1, tries=15)
+
+    # Repeat tests with UDP
+
+    # Assign Floating IP to the first load balancer
+    floating_ipv4.assign(load_balancer=load_balancer1)
+
+    # Setup UDP test servers on both backends
+    setup_lbaas_udp_test_server(backend1)
+    setup_lbaas_udp_test_server(backend2)
+
+    # Create UDP pools for both load balancers
+    udp_pool1 = load_balancer1.add_pool(f'lb1-udp-pool', 'round_robin', 'udp')
+    udp_pool2 = load_balancer2.add_pool(f'lb2-udp-pool', 'round_robin', 'udp')
+
+    # Add backend members to their respective UDP pools
+    load_balancer1.add_pool_member(udp_pool1, backend1, private_network1)
+    load_balancer2.add_pool_member(udp_pool2, backend2, private_network2)
+
+    # Add UDP listeners on port 80 for both load balancers
+    load_balancer1.add_listener(udp_pool1, 80, protocol='udp')
+    load_balancer2.add_listener(udp_pool2, 80, protocol='udp')
+
+    # Helper function to verify UDP responses from expected backend
+    def assert_udp_response(ip, expected_backend):
+        expected_response = (
+            f'Backend server running on '
+            f'{expected_backend.name} {expected_backend.uuid}.'
+        )
+        actual_response = prober.udp_get(ip, 80)
+        assert expected_response == actual_response
+
+    # Check backend1 receives UDP requests on the Floating IP
+    retry_for(seconds=20).or_fail(
+        lambda: assert_udp_response(floating_ipv4, backend1),
+        msg='Assertion not met, when using backend1.',
+    )
+
+    # Assign Floating IP to the second load balancer
+    floating_ipv4.assign(load_balancer=load_balancer2)
+
+    # Check backend2 receives UDP requests on the Floating IP
+    retry_for(seconds=20).or_fail(
+        lambda: assert_udp_response(floating_ipv4, backend2),
+        msg='Assertion not met, when using backend2.',
+    )
 
 
 def test_frontend_allowed_cidr(prober, create_load_balancer_scenario):

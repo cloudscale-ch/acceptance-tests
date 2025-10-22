@@ -713,7 +713,7 @@ def create_load_balancer(request, function_api, zone):
 @pytest.fixture(scope='function')
 def create_backend_server(prober, create_server, image):
 
-    def factory(private_network, name='backend', ssl=False):
+    def factory(private_network, name='backend', ssl=False, protocol='tcp'):
 
         backend = create_server(
             name=name,
@@ -727,6 +727,7 @@ def create_backend_server(prober, create_server, image):
             backend,
             private_network,
             ssl,
+            protocol,
         )
 
         return backend
@@ -757,6 +758,7 @@ def create_load_balancer_scenario(request, function_api, zone, prober, image,
                 ssl,
                 allowed_cidrs,
                 pool_protocol,
+                listener_protocol='tcp',
                 name='lb',
                 frontend_subnet=None,
                 health_monitor_http_config=None,
@@ -782,6 +784,7 @@ def create_load_balancer_scenario(request, function_api, zone, prober, image,
                 'name': f'backend{i + 1}',
                 'private_network': private_network,
                 'ssl': ssl,
+                'protocol': pool_protocol,
             }
             for i in range(num_backends)
         ))
@@ -799,6 +802,7 @@ def create_load_balancer_scenario(request, function_api, zone, prober, image,
             pool,
             port,
             allowed_cidrs,
+            protocol=listener_protocol,
             name=f'{name}-port-{port}',
         )
 
@@ -807,7 +811,8 @@ def create_load_balancer_scenario(request, function_api, zone, prober, image,
             load_balancer.add_health_monitor(pool, health_monitor_type,
                                              health_monitor_http_config)
 
-        wait_for_load_balancer_ready(load_balancer, prober, port, ssl)
+        wait_for_load_balancer_ready(load_balancer, prober, port, ssl,
+                                     listener_protocol)
 
         return load_balancer, listener, pool, backends, private_network
 

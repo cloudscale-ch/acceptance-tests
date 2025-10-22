@@ -27,20 +27,21 @@ These tests are run regularly against our public infrastructure as well as our i
 |                           | [test_floating_ip_mass_failover](./test_floating_ip.py#L141)                     | default  |
 |                           | [test_floating_network](./test_floating_ip.py#L180)                              | default  |
 | **Load Balancer**         | [test_simple_tcp_load_balancer](./test_load_balancer.py#L24)                     | default  |
-|                           | [test_load_balancer_end_to_end](./test_load_balancer.py#L48)                     | default  |
-|                           | [test_multiple_listeners](./test_load_balancer.py#L81)                           | default  |
-|                           | [test_multiple_listeners_multiple_pools](./test_load_balancer.py#L113)           | default  |
-|                           | [test_balancing_algorithm_round_robin](./test_load_balancer.py#L166)             | default  |
-|                           | [test_balancing_algorithm_source_ip](./test_load_balancer.py#L202)               | default  |
-|                           | [test_balancing_algorithm_least_connections](./test_load_balancer.py#L251)       | default  |
-|                           | [test_backend_health_monitors](./test_load_balancer.py#L292)                     | default  |
-|                           | [test_pool_member_change](./test_load_balancer.py#L372)                          | default  |
-|                           | [test_private_load_balancer_frontend](./test_load_balancer.py#L464)              | default  |
-|                           | [test_floating_ip](./test_load_balancer.py#L508)                                 | default  |
-|                           | [test_floating_ip_reassign](./test_load_balancer.py#L542)                        | default  |
-|                           | [test_frontend_allowed_cidr](./test_load_balancer.py#L623)                       | default  |
-|                           | [test_proxy_protocol](./test_load_balancer.py#L698)                              | default  |
-|                           | [test_ping](./test_load_balancer.py#L741)                                        | default  |
+|                           | [test_simple_udp_load_balancer](./test_load_balancer.py#L48)                     | default  |
+|                           | [test_load_balancer_end_to_end](./test_load_balancer.py#L78)                     | default  |
+|                           | [test_multiple_listeners](./test_load_balancer.py#L152)                          | default  |
+|                           | [test_multiple_listeners_multiple_pools](./test_load_balancer.py#L184)           | default  |
+|                           | [test_balancing_algorithm_round_robin](./test_load_balancer.py#L237)             | default  |
+|                           | [test_balancing_algorithm_source_ip](./test_load_balancer.py#L273)               | default  |
+|                           | [test_balancing_algorithm_least_connections](./test_load_balancer.py#L322)       | default  |
+|                           | [test_backend_health_monitors](./test_load_balancer.py#L363)                     | default  |
+|                           | [test_pool_member_change](./test_load_balancer.py#L443)                          | default  |
+|                           | [test_private_load_balancer_frontend](./test_load_balancer.py#L535)              | default  |
+|                           | [test_floating_ip](./test_load_balancer.py#L579)                                 | default  |
+|                           | [test_floating_ip_reassign](./test_load_balancer.py#L613)                        | default  |
+|                           | [test_frontend_allowed_cidr](./test_load_balancer.py#L736)                       | default  |
+|                           | [test_proxy_protocol](./test_load_balancer.py#L811)                              | default  |
+|                           | [test_ping](./test_load_balancer.py#L854)                                        | default  |
 | **Nested Virtualization** | [test_virtualization_support](./test_nested_virtualization.py#L13)               | default  |
 |                           | [test_run_nested_vm](./test_nested_virtualization.py#L39)                        | default  |
 | **Private Network**       | [test_private_ip_address_on_all_images](./test_private_network.py#L14)           | all      |

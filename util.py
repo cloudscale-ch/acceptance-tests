@@ -696,11 +696,14 @@ def setup_lbaas_udp_test_server(backend):
     msg = f'Backend server running on {backend.name} {backend.uuid}'
 
     # Run the UDP echo server as a transient systemd service
+    # UDP echo server with 'pipes' option to prevent race condition where echo
+    # exits before socat writes UDP data to stdin (avoiding intermittent
+    # broken pipe errors)
     backend.run(oneliner(f'''
         systemd-run
         --user
         --unit lbaas-udp-echo-server
-        socat -v UDP4-RECVFROM:8000,fork "SYSTEM:echo {msg}."
+        socat -v UDP4-RECVFROM:8000,fork SYSTEM:"echo {msg}.",pipes
     '''))
 
 

@@ -9,12 +9,13 @@ You can create, modify and delete TCP load balancers.
 import pytest
 
 from time import sleep
-from util import build_http_url, setup_lbaas_udp_test_server
+from util import build_http_url
 from util import get_backends_for_request
 from util import in_parallel
 from util import RESOURCE_NAME_PREFIX
 from util import retry_for
 from util import setup_lbaas_http_test_server
+from util import setup_lbaas_udp_test_server
 from util import start_persistent_download
 from util import unique
 from util import wait_for_load_balancer_ready

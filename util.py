@@ -691,7 +691,23 @@ def setup_lbaas_http_test_server(backend, ssl=False):
     '''))
 
 
-def setup_lbaas_backend(backend, backend_network, ssl=False):
+def setup_lbaas_udp_test_server(backend):
+    """ Start a simple UDP server that returns a static response. """
+    msg = f'Backend server running on {backend.name} {backend.uuid}'
+
+    # Run the UDP echo server as a transient systemd service
+    # UDP echo server with 'pipes' option to prevent race condition where echo
+    # exits before socat writes UDP data to stdin (avoiding intermittent
+    # broken pipe errors)
+    backend.run(oneliner(f'''
+        systemd-run
+        --user
+        --unit lbaas-udp-echo-server
+        socat -v UDP4-RECVFROM:8000,fork SYSTEM:"echo {msg}.",pipes
+    '''))
+
+
+def setup_lbaas_backend(backend, backend_network, ssl=False, protocol='tcp'):
     """ Configures a server to work as an LBaaS test HTTP backend.
 
     The server is plugged into the backend network and a simple HTTP test
@@ -709,7 +725,12 @@ def setup_lbaas_backend(backend, backend_network, ssl=False):
     backend.enable_dhcp_in_networkd(backend.interfaces[-1])
 
     # Setup the HTTP test server
-    setup_lbaas_http_test_server(backend, ssl)
+    if protocol in ('tcp', 'proxy', 'proxyv2'):
+        setup_lbaas_http_test_server(backend, ssl)
+    elif protocol == 'udp':
+        setup_lbaas_udp_test_server(backend)
+    else:
+        raise AssertionError(f'Unknown protocol: {protocol}')
 
 
 def wait_for_url_ready(url, prober, content=None, timeout=90):
@@ -729,8 +750,19 @@ def wait_for_url_ready(url, prober, content=None, timeout=90):
     )
 
 
+def wait_for_udp_response(ip, prober, timeout):
+    def assert_udp_response():
+        assert 'Backend server' in prober.udp_get(ip, 80)
+
+    retry_for(seconds=timeout).or_fail(
+        assert_udp_response,
+        msg=f'Assertion not met within {timeout}s.'
+    )
+
+
 def wait_for_load_balancer_ready(load_balancer, prober, port=None, ssl=False,
-                                 timeout=90, content=None, ip_version=4):
+                                 protocol='tcp', timeout=90, content=None,
+                                 ip_version=4):
     """ Waits for the load balancer to become operational. """
 
     if port is None:
@@ -740,12 +772,17 @@ def wait_for_load_balancer_ready(load_balancer, prober, port=None, ssl=False,
     load_balancer.wait_for('running', seconds=120)
 
     # Wait for the LB to serve content
-    wait_for_url_ready(
-        build_http_url(load_balancer.vip(ip_version), port=port, ssl=ssl),
-        prober,
-        content,
-        timeout,
-    )
+    if protocol == 'tcp':
+        wait_for_url_ready(
+            build_http_url(load_balancer.vip(ip_version), port=port, ssl=ssl),
+            prober,
+            content,
+            timeout,
+        )
+    elif protocol == 'udp':
+        wait_for_udp_response(load_balancer.vip(ip_version), prober, timeout)
+    else:
+        raise AssertionError(f'Unknown protocol: {protocol}')
 
 
 def unique(iterable):

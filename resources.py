@@ -255,6 +255,31 @@ class Server(CloudscaleResource):
 
         raise NotImplementedError("No suitable HTTP client found")
 
+    def udp_get(self, ip, port, timeout=1):
+        """ Sends UDP data to IP:port and returns the received response
+        (if any). Raises AssertionError on error or empty response.
+        """
+
+        if self.run('command -v socat').exit_status == 0:
+            result = self.run(oneliner(f'''
+                echo -n "hi {ip}" |
+                socat -t {timeout} - UDP:{ip}:{port}
+            '''))
+
+            if result.exit_status != 0:
+                raise AssertionError(
+                    f"socat failed with exit status {result.exit_status}:\n"
+                    f"stdout: {result.stdout}\n"
+                    f"stderr: {result.stderr}"
+                )
+
+            stdout = result.stdout.strip()
+            if stdout == "":
+                raise AssertionError(f"stdout is empty")
+            return stdout
+
+        raise NotImplementedError("No suitable UDP client found (nc or socat)")
+
     def create_host(self, timeout):
         """ Creates the testinfra host.
 
@@ -1395,7 +1420,7 @@ class LoadBalancer(CloudscaleResource):
             json={
                 'name': f'{RESOURCE_NAME_PREFIX}-listener-{name}',
                 'pool': pool['uuid'],
-                'protocol': 'tcp',
+                'protocol': protocol,
                 'protocol_port': protocol_port,
                 'allowed_cidrs': allowed_cidrs or [],
             }).json())

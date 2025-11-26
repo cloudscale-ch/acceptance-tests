@@ -653,8 +653,8 @@ def upload_custom_image(request, session_api, zone):
 
         # All images are expanded to raw and then hashed, so the hash is not
         # per-format, but always refers to raw.
-        md5 = requests.get(f'{img}.md5').text
-        sha256 = requests.get(f'{img}.sha256').text
+        md5 = requests.get(f'{img}.{fmt}.md5').text
+        sha256 = requests.get(f'{img}.{fmt}.sha256').text
 
         image = CustomImage(
             request=request,

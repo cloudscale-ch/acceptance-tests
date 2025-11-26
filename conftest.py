@@ -676,8 +676,8 @@ def upload_custom_image(request, session_api, zone):
 
         # All images are expanded to raw and then hashed, so the hash is not
         # per-format, but always refers to raw.
-        md5 = requests.get(f'{img}.{fmt}.md5').text
-        sha256 = requests.get(f'{img}.{fmt}.sha256').text
+        md5 = requests.get(f'{img}.{fmt}.md5').text.strip()
+        sha256 = requests.get(f'{img}.{fmt}.sha256').text.strip()
 
         image = CustomImage(
             request=request,
@@ -697,10 +697,16 @@ def upload_custom_image(request, session_api, zone):
             raise RuntimeError(f"Failed to import {url}")
 
         if image.checksums['md5'] != md5:
-            raise RuntimeError(f"Wrong MD5 for {url}: {md5}")
+            raise RuntimeError(
+                f"Wrong MD5 for {url}: '{md5}', "
+                f"expected '{image.checksums['md5']}'"
+            )
 
         if image.checksums['sha256'] != sha256:
-            raise RuntimeError(f"Wrong SHA-256 for {url}: {sha256}")
+            raise RuntimeError(
+                f"Wrong SHA-256 for {url}: '{sha256}', "
+                f"expected '{image.checksums['sha256']}'"
+            )
 
         return image
 

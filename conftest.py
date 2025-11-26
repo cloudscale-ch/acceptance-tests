@@ -647,18 +647,18 @@ def custom_alpine_image(request, upload_custom_image, custom_image_prefix):
 
 
 @pytest.fixture(scope='session', params=['raw', 'qcow2'])
-def custom_ubuntu_uefi_image(
+def custom_debian_uefi_image(
     request,
     upload_custom_image,
     custom_image_prefix,
 ):
-    """ A session scoped custom Ubuntu UEFI image. """
+    """ A session scoped custom Debian UEFI image. """
 
     host = 'https://at-images.objects.lpg.cloudscale.ch'
-    path = f'{custom_image_prefix}/ubuntu'
+    path = f'{custom_image_prefix}/debian'
 
     return upload_custom_image(
-        img_name='Ubuntu UEFI',
+        img_name='Debian UEFI',
         img=f'{host}/{path}',
         firmware_type='uefi',
         fmt=request.param

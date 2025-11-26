@@ -52,9 +52,6 @@ EXCLUDE = (
     'pfsense',
 )
 
-# Supported custom image formats.
-CUSTOM_IMAGE_FORMATS = ['raw', 'qcow2']
-
 # Function names containing this expression are tested with all/common images
 generatable_fn = re.compile(r'_(?P<kind>all|common)_images($|_)')
 
@@ -621,7 +618,7 @@ def private_network(create_private_network):
     return create_private_network()
 
 
-@pytest.fixture(scope='session', params=CUSTOM_IMAGE_FORMATS)
+@pytest.fixture(scope='session', params=['raw', 'qcow2'])
 def custom_alpine_image(request, upload_custom_image):
     """ A session scoped custom Alpine image. """
 
@@ -633,7 +630,7 @@ def custom_alpine_image(request, upload_custom_image):
     )
 
 
-@pytest.fixture(scope='session', params=CUSTOM_IMAGE_FORMATS)
+@pytest.fixture(scope='session', params=['raw', 'qcow2'])
 def custom_ubuntu_uefi_image(request, upload_custom_image):
     """ A session scoped custom Ubuntu UEFI image. """
 

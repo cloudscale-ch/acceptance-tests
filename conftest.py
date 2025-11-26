@@ -22,6 +22,7 @@ from resources import Network
 from resources import Server
 from resources import ServerGroup
 from resources import Volume
+from urllib.parse import urlparse
 from util import extract_short_error
 from util import global_run_id
 from util import in_parallel
@@ -618,25 +619,47 @@ def private_network(create_private_network):
     return create_private_network()
 
 
+@pytest.fixture(scope='session')
+def custom_image_prefix():
+    """ The prefix to use for custom images stored in S3. """
+
+    host = urlparse(API_URL).netloc
+
+    if host == 'api.cloudscale.ch':
+        return 'prod'
+
+    return host.split('.', 1)[0].split('-')[0]
+
+
 @pytest.fixture(scope='session', params=['raw', 'qcow2', 'iso'])
-def custom_alpine_image(request, upload_custom_image):
+def custom_alpine_image(request, upload_custom_image, custom_image_prefix):
     """ A session scoped custom Alpine image. """
+
+    host = 'https://at-images.objects.lpg.cloudscale.ch'
+    path = f'{custom_image_prefix}/alpine'
 
     return upload_custom_image(
         img_name='Alpine',
-        img='https://at-images.objects.lpg.cloudscale.ch/alpine',
+        img=f'{host}/{path}',
         firmware_type='bios',
         fmt=request.param
     )
 
 
 @pytest.fixture(scope='session', params=['raw', 'qcow2'])
-def custom_ubuntu_uefi_image(request, upload_custom_image):
+def custom_ubuntu_uefi_image(
+    request,
+    upload_custom_image,
+    custom_image_prefix,
+):
     """ A session scoped custom Ubuntu UEFI image. """
+
+    host = 'https://at-images.objects.lpg.cloudscale.ch'
+    path = f'{custom_image_prefix}/ubuntu'
 
     return upload_custom_image(
         img_name='Ubuntu UEFI',
-        img='https://at-images.objects.lpg.cloudscale.ch/ubuntu',
+        img=f'{host}/{path}',
         firmware_type='uefi',
         fmt=request.param
     )

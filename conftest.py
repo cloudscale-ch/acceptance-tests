@@ -618,7 +618,7 @@ def private_network(create_private_network):
     return create_private_network()
 
 
-@pytest.fixture(scope='session', params=['raw', 'qcow2'])
+@pytest.fixture(scope='session', params=['raw', 'qcow2', 'iso'])
 def custom_alpine_image(request, upload_custom_image):
     """ A session scoped custom Alpine image. """
 

@@ -22,6 +22,7 @@ from resources import Network
 from resources import Server
 from resources import ServerGroup
 from resources import Volume
+from urllib.parse import urlparse
 from util import extract_short_error
 from util import global_run_id
 from util import in_parallel
@@ -51,9 +52,6 @@ EXCLUDE = (
     'opnsense',
     'pfsense',
 )
-
-# Supported custom image formats.
-CUSTOM_IMAGE_FORMATS = ['raw', 'qcow2']
 
 # Function names containing this expression are tested with all/common images
 generatable_fn = re.compile(r'_(?P<kind>all|common)_images($|_)')
@@ -628,25 +626,47 @@ def private_network(create_private_network):
     return create_private_network()
 
 
-@pytest.fixture(scope='session', params=CUSTOM_IMAGE_FORMATS)
-def custom_alpine_image(request, upload_custom_image):
+@pytest.fixture(scope='session')
+def custom_image_prefix():
+    """ The prefix to use for custom images stored in S3. """
+
+    host = urlparse(API_URL).netloc
+
+    if host == 'api.cloudscale.ch':
+        return 'prod'
+
+    return host.split('.', 1)[0].split('-')[0]
+
+
+@pytest.fixture(scope='session', params=['raw', 'qcow2', 'iso'])
+def custom_alpine_image(request, upload_custom_image, custom_image_prefix):
     """ A session scoped custom Alpine image. """
+
+    host = 'https://at-images.objects.lpg.cloudscale.ch'
+    path = f'{custom_image_prefix}/alpine'
 
     return upload_custom_image(
         img_name='Alpine',
-        img='https://at-images.objects.lpg.cloudscale.ch/alpine',
+        img=f'{host}/{path}',
         firmware_type='bios',
         fmt=request.param
     )
 
 
-@pytest.fixture(scope='session', params=CUSTOM_IMAGE_FORMATS)
-def custom_ubuntu_uefi_image(request, upload_custom_image):
-    """ A session scoped custom Ubuntu UEFI image. """
+@pytest.fixture(scope='session', params=['raw', 'qcow2'])
+def custom_debian_uefi_image(
+    request,
+    upload_custom_image,
+    custom_image_prefix,
+):
+    """ A session scoped custom Debian UEFI image. """
+
+    host = 'https://at-images.objects.lpg.cloudscale.ch'
+    path = f'{custom_image_prefix}/debian'
 
     return upload_custom_image(
-        img_name='Ubuntu UEFI',
-        img='https://at-images.objects.lpg.cloudscale.ch/ubuntu',
+        img_name='Debian UEFI',
+        img=f'{host}/{path}',
         firmware_type='uefi',
         fmt=request.param
     )
@@ -663,8 +683,8 @@ def upload_custom_image(request, session_api, zone):
 
         # All images are expanded to raw and then hashed, so the hash is not
         # per-format, but always refers to raw.
-        md5 = requests.get(f'{img}.md5').text
-        sha256 = requests.get(f'{img}.sha256').text
+        md5 = requests.get(f'{img}.{fmt}.md5').text.strip()
+        sha256 = requests.get(f'{img}.{fmt}.sha256').text.strip()
 
         image = CustomImage(
             request=request,
@@ -684,10 +704,16 @@ def upload_custom_image(request, session_api, zone):
             raise RuntimeError(f"Failed to import {url}")
 
         if image.checksums['md5'] != md5:
-            raise RuntimeError(f"Wrong MD5 for {url}: {md5}")
+            raise RuntimeError(
+                f"Wrong MD5 for {url}: '{md5}', "
+                f"expected '{image.checksums['md5']}'"
+            )
 
         if image.checksums['sha256'] != sha256:
-            raise RuntimeError(f"Wrong SHA-256 for {url}: {sha256}")
+            raise RuntimeError(
+                f"Wrong SHA-256 for {url}: '{sha256}', "
+                f"expected '{image.checksums['sha256']}'"
+            )
 
         return image
 

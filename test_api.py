@@ -9,6 +9,8 @@ Test the basic API functionality independent of any specific API actions.
 import requests
 
 from constants import API_URL
+from datetime import datetime
+from datetime import UTC
 from util import raw_headers
 
 
@@ -73,3 +75,64 @@ def test_cors_headers():
         # Allow all methods supported by the API
         assert headers['Access-Control-Allow-Methods'] \
             == 'GET, POST, OPTIONS, PUT, PATCH, DELETE'
+
+
+def test_project_log(create_server, image, api):
+    """ All actions performed via the Control Panel or via the API that
+    modify a resource owned by a project are added to the project's audit log.
+
+    """
+
+    # Get the log lines from the start of this test
+    start = datetime.now(UTC).isoformat()
+
+    # The result will include a link to poll for more logs
+    log = api.get('/project-logs', params={'start': start}).json()
+    assert log['poll_more'] is not None
+
+    # Let's create a server
+    server = create_server(image=image['slug'])
+
+    # Poll for more logs
+    log = api.get(log['poll_more']).json()
+
+    # The lines may include logs from other tasks running in parallel, so we
+    # need to filter them out.
+    lines = [line for line in log['results'] if server.name in line['message']]
+
+    assert len(lines) == 1
+    assert lines[0]['action'] == 'server_create'
+    assert lines[0]['message'] == f"Server '{server.name}' has been created"
+
+    # Let's stop the server
+    server.stop()
+
+    # Poll for more logs to find the stopped server log
+    log = api.get(log['poll_more']).json()
+    lines = [line for line in log['results'] if server.name in line['message']]
+
+    assert len(lines) == 1
+    assert lines[0]['action'] == 'server_stop'
+    assert lines[0]['message'] == f"Server '{server.name}' has been shut down"
+
+    # Let's destroy the server
+    server.delete()
+
+    # Observe proof that it happened
+    log = api.get(log['poll_more']).json()
+    lines = [line for line in log['results'] if server.name in line['message']]
+
+    assert len(lines) == 1
+    assert lines[0]['action'] == 'server_delete'
+    assert lines[0]['message'] == f"Server '{server.name}' has been deleted"
+
+    # We can look at the logs created since start, to see the whole set
+    log = api.get('/project-logs', params={'start': start}).json()
+    lines = [line for line in log['results'] if server.name in line['message']]
+
+    assert len(lines) == 3
+    assert [line['action'] for line in lines] == [
+        'server_create',
+        'server_stop',
+        'server_delete',
+    ]

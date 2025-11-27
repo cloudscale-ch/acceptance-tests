@@ -14,9 +14,10 @@ These tests are run regularly against our public infrastructure as well as our i
 
 | Category                  | Test Name                                                                        | Images   |
 |---------------------------|----------------------------------------------------------------------------------|----------|
-| **API**                   | [test_duplicate_headers](./test_api.py#L15)                                      | -        |
-|                           | [test_invalid_duplicate_headers](./test_api.py#L31)                              | -        |
-|                           | [test_cors_headers](./test_api.py#L53)                                           | -        |
+| **API**                   | [test_duplicate_headers](./test_api.py#L17)                                      | -        |
+|                           | [test_invalid_duplicate_headers](./test_api.py#L33)                              | -        |
+|                           | [test_cors_headers](./test_api.py#L55)                                           | -        |
+|                           | [test_project_log](./test_api.py#L80)                                            | -        |
 | **Custom Image**          | [test_custom_image_with_slug](./test_custom_image.py#L11)                        | custom   |
 |                           | [test_custom_image_with_uuid](./test_custom_image.py#L22)                        | custom   |
 |                           | [test_custom_image_with_uefi](./test_custom_image.py#L33)                        | custom   |

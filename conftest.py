@@ -398,6 +398,13 @@ def function_api(request):
 
 
 @pytest.fixture(scope='function')
+def api(function_api):
+    """ An alias for function_api. """
+
+    yield function_api
+
+
+@pytest.fixture(scope='function')
 def create_server(request, function_api, image):
     """ Factory to launch function scoped VMs. """
 

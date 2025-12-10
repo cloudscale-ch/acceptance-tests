@@ -9,6 +9,8 @@ from api import API
 from constants import API_URL
 from constants import LOCKS_PATH
 from constants import RUNNER_ID
+from constants import CUSTOM_IMAGE_ALPINE_URL
+from constants import CUSTOM_IMAGE_DEBIAN_URL
 from datetime import datetime
 from datetime import timedelta
 from events import trigger
@@ -22,7 +24,6 @@ from resources import Network
 from resources import Server
 from resources import ServerGroup
 from resources import Volume
-from urllib.parse import urlparse
 from util import extract_short_error
 from util import global_run_id
 from util import in_parallel
@@ -626,47 +627,25 @@ def private_network(create_private_network):
     return create_private_network()
 
 
-@pytest.fixture(scope='session')
-def custom_image_prefix():
-    """ The prefix to use for custom images stored in S3. """
-
-    host = urlparse(API_URL).netloc
-
-    if host == 'api.cloudscale.ch':
-        return 'prod'
-
-    return host.split('.', 1)[0].split('-')[0]
-
-
 @pytest.fixture(scope='session', params=['raw', 'qcow2', 'iso'])
-def custom_alpine_image(request, upload_custom_image, custom_image_prefix):
+def custom_alpine_image(request, upload_custom_image):
     """ A session scoped custom Alpine image. """
-
-    host = 'https://at-images.objects.lpg.cloudscale.ch'
-    path = f'{custom_image_prefix}/alpine'
 
     return upload_custom_image(
         img_name='Alpine',
-        img=f'{host}/{path}',
+        img=CUSTOM_IMAGE_ALPINE_URL,
         firmware_type='bios',
         fmt=request.param
     )
 
 
 @pytest.fixture(scope='session', params=['raw', 'qcow2'])
-def custom_debian_uefi_image(
-    request,
-    upload_custom_image,
-    custom_image_prefix,
-):
+def custom_debian_uefi_image(request, upload_custom_image):
     """ A session scoped custom Debian UEFI image. """
-
-    host = 'https://at-images.objects.lpg.cloudscale.ch'
-    path = f'{custom_image_prefix}/debian'
 
     return upload_custom_image(
         img_name='Debian UEFI',
-        img=f'{host}/{path}',
+        img=CUSTOM_IMAGE_DEBIAN_URL,
         firmware_type='uefi',
         fmt=request.param
     )

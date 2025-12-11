@@ -30,6 +30,35 @@ PUBLIC_PING_TARGETS = {
     6: '2001:4860:4860::8888'
 }
 
+# Custom images for tests. Each image comes in the following formats (appended
+# to the CUSTOM_IMAGE_<IMAGE>_URL variable as extension:
+#
+# - qcow2
+# - raw
+# - iso
+#
+# For example:
+#
+#   https://at-images.objects.lpg.cloudscale.ch/prod/alpine.qcow2
+#
+# Each format further has the following hash sums, each of which refers to the
+# hash that OpenStack sees after import (in the case of qcow2, this is the same
+# hash as the raw image, as qcow2 is first converted to raw):
+#
+# - md5
+# - sha256
+#
+# For exmple:
+#
+#   https://at-images.objects.lpg.cloudscale.ch/prod/alpine.sha256
+#
+# Note: These images are built for testing and not meant for anything else.
+#
+CUSTOM_IMAGE_PREFIX = re.search('/(|[a-z]+)-?api', API_URL).group(1) or 'prod'
+CUSTOM_IMAGE_BASE = f'https://at-images.objects.lpg.cloudscale.ch'
+CUSTOM_IMAGE_ALPINE_URL = f'{CUSTOM_IMAGE_BASE}/{CUSTOM_IMAGE_PREFIX}/alpine'
+CUSTOM_IMAGE_DEBIAN_URL = f'{CUSTOM_IMAGE_BASE}/{CUSTOM_IMAGE_PREFIX}/debian'
+
 # Unique id that distinguishes acceptance tests generated resources.
 RUNNER_ID_HASH = blake2b(API_TOKEN.encode("utf-8"), digest_size=8).hexdigest()
 RUNNER_ID = f'at-{RUNNER_ID_HASH}'

@@ -7,6 +7,7 @@ Customers can start virtual servers inside VMs (nested virtualiziation).
 
 """
 
+from constants import CUSTOM_IMAGE_ALPINE_URL
 from util import oneliner
 
 
@@ -40,7 +41,7 @@ def test_run_nested_vm(server):
     """ Nested virtualization is supported. """
 
     vm_os = 'alpine'   # Needs to match one virt os-variant
-    vm_iso_url = 'https://at-images.objects.lpg.cloudscale.ch/alpine.qcow2'
+    vm_iso_url = f"{CUSTOM_IMAGE_ALPINE_URL}.qcow2"
 
     # Install the required package
     server.run('sudo apt update')

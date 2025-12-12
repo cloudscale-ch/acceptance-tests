@@ -1,3 +1,4 @@
+import boto3
 import os
 import pytest
 import random
@@ -21,6 +22,7 @@ from resources import CustomImage
 from resources import FloatingIP
 from resources import LoadBalancer
 from resources import Network
+from resources import ObjectsUser
 from resources import Server
 from resources import ServerGroup
 from resources import Volume
@@ -829,3 +831,51 @@ def create_load_balancer_scenario(request, function_api, zone, prober, image,
         return load_balancer, listener, pool, backends, private_network
 
     return factory
+
+
+@pytest.fixture(scope='session')
+def create_objects_user(request, session_api, objects_endpoint):
+    """ Factory to create an objects user. """
+
+    factory = ObjectsUser.factory(
+        request=request,
+        api=session_api,
+    )
+
+    def wrapper(*args, **kwargs):
+        user = factory(*args, **kwargs)
+
+        # We need to wait for a moment for the key to become available.
+        user.wait_for_access()
+
+        return user
+
+    return wrapper
+
+
+@pytest.fixture(scope='session')
+def objects_user(create_objects_user):
+    """ An object user that can be used with objects_endpoint. """
+
+    return create_objects_user(name=f'at-{secrets.token_hex(8)}')
+
+
+@pytest.fixture(scope='session')
+def objects_endpoint(session_api):
+    """ An objects endpoint of the given zone. """
+
+    return session_api.objects_endpoint
+
+
+@pytest.fixture(scope='session')
+def access_key(objects_user):
+    """ An S3 access key for the objects endpoint. """
+
+    return objects_user.keys[0]["access_key"]
+
+
+@pytest.fixture(scope='session')
+def secret_key(objects_user):
+    """ An S3 secret key for the objects endpoint. """
+
+    return objects_user.keys[0]["secret_key"]

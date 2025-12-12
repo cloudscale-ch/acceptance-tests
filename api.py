@@ -1,3 +1,4 @@
+import re
 import requests
 import time
 
@@ -11,6 +12,11 @@ from events import trigger
 from filelock import FileLock
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
+from urllib.parse import urlparse
+
+
+# Contains delete handlers, see delete_handler below
+DELETE_HANDLERS = {}
 
 
 class CloudscaleHTTPAdapter(HTTPAdapter):
@@ -106,29 +112,7 @@ class API(requests.Session):
         return super().post(url, data=data, json=json, **kwargs)
 
     def delete(self, url):
-        super().delete(url)
-
-        # Wait for snapshots to be deleted
-        if 'volume-snapshots' in url:
-            timeout = time.monotonic() + 60
-
-            while time.monotonic() < timeout:
-                time.sleep(1)
-
-                try:
-                    snapshot = self.get(url)
-                except requests.exceptions.HTTPError as e:
-                    if e.response.status_code == 404:
-                        # The snapshot is gone, stop waiting
-                        break
-                    else:
-                        raise e
-
-            else:
-                raise Timeout(
-                    f'Snapshot failed to delete within 60 seconds. Status '
-                    f'is still "{snapshot.json()["status"]}".'
-                )
+        delete_handler_for_url(url)(api=self, url=url)
 
     def on_response(self, response, *args, **kwargs):
         trigger('request.after', request=response.request, response=response)
@@ -172,6 +156,7 @@ class API(requests.Session):
         yield from resources('/networks')
         yield from resources('/server-groups')
         yield from resources('/custom-images')
+        yield from resources('/objects-users')
 
     def cleanup(self, limit_to_scope=True, limit_to_process=True):
         """ Deletes resources created by this API object. """
@@ -194,3 +179,69 @@ class API(requests.Session):
 
         if exceptions:
             raise ExceptionGroup("Failures during cleanup.", exceptions)
+
+
+def delete_handler(path):
+    """ Registers the decorated function as delete handler for the given
+    path. The path is treated as regular expression pattern, used to search
+    the path (not the whole URL).
+
+    The decorated function is supposed to delete the given URL.
+
+    """
+
+    def delete_handler_decorator(fn):
+        DELETE_HANDLERS[path] = fn
+        return fn
+    return delete_handler_decorator
+
+
+def delete_handler_for_url(url):
+    """ Evaluates the registered delete handlers and picks the first matching
+    one, or a default.
+
+    The order of the evaluation is not strictly defined, handlers are
+    expected to not overlap.
+
+    """
+    path = urlparse(url).path
+
+    for pattern, fn in DELETE_HANDLERS.items():
+        if re.search(pattern, path):
+            return fn
+
+    return lambda api, url: api.delete(url)
+
+
+@delete_handler(path='/v1/volume-snapshots')
+def delete_volume_snapshots(api, url):
+    """ When deleting volume-snapshots, we need to wait for the snapshots to
+    be deleted, or we won't be able to delete the servers later.
+
+    """
+
+    # Use the low-level method, as we are downstream from api.delete and cannot
+    # call api.delete, lest we want an infinite loop.
+    api.request("DELETE", url)
+
+    # Wait for snapshots to be deleted
+    if 'volume-snapshots' in url:
+        timeout = time.monotonic() + 60
+
+        while time.monotonic() < timeout:
+            time.sleep(1)
+
+            try:
+                snapshot = api.get(url)
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code == 404:
+                    # The snapshot is gone, stop waiting
+                    break
+                else:
+                    raise e
+
+        else:
+            raise Timeout(
+                f'Snapshot failed to delete within 60 seconds. Status '
+                f'is still "{snapshot.json()["status"]}".'
+            )

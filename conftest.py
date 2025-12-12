@@ -21,6 +21,7 @@ from resources import CustomImage
 from resources import FloatingIP
 from resources import LoadBalancer
 from resources import Network
+from resources import ObjectsUser
 from resources import Server
 from resources import ServerGroup
 from resources import Volume
@@ -829,3 +830,18 @@ def create_load_balancer_scenario(request, function_api, zone, prober, image,
         return load_balancer, listener, pool, backends, private_network
 
     return factory
+
+
+@pytest.fixture(scope='function')
+def create_objects_user(request, function_api):
+    """ Factory to create an objects user. """
+
+    return ObjectsUser.factory(
+        request=request,
+        api=function_api,
+    )
+
+
+@pytest.fixture(scope='function')
+def objects_user(create_objects_user):
+    return create_objects_user(name=f'test-{secrets.token_hex(8)}')

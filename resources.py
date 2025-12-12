@@ -1454,3 +1454,17 @@ class LoadBalancer(CloudscaleResource):
         for i in range(count):
             assert (prober.http_get(self.build_url(url='/hostname', port=port))
                     == backend.name)
+
+
+class ObjectsUser(CloudscaleResource):
+
+    def __init__(self, request, api, name):
+        super().__init__(request, api)
+
+        self.spec = {
+            'display_name': f'{RESOURCE_NAME_PREFIX}-{name}',
+        }
+
+    @with_trigger('objects-user.create')
+    def create(self):
+        self.info = self.api.post('/objects-users', json=self.spec).json()

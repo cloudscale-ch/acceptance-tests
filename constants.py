@@ -9,7 +9,15 @@ from hashlib import blake2b
 if not os.environ.get('CLOUDSCALE_API_TOKEN'):
     raise RuntimeError(
         "No valid API token found in the CLOUDSCALE_API_TOKEN "
-        "environment variable"
+        "environment variable."
+    )
+
+if (('CLOUDSCALE_API_URL' in os.environ)
+        != ('CLOUDSCALE_OBJECTS_URL' in os.environ)):
+    raise RuntimeError(
+        "Either the CLOUDSCALE_API_URL or the CLOUDSCALE_OBJECTS_URL "
+        "environment variable is set, but not both. Set both variables or "
+        "use the defaults."
     )
 
 # The API token is used to distinguish tests from various runners. If you have
@@ -23,6 +31,15 @@ API_TOKEN = os.environ['CLOUDSCALE_API_TOKEN']
 # The last slash is significant in certain places, so always strip it
 API_URL = os.environ.get('CLOUDSCALE_API_URL', 'https://api.cloudscale.ch/v1')
 API_URL = API_URL.rstrip('/')
+
+OBJECTS_URL = os.environ.get(
+    'CLOUDSCALE_OBJECTS_URL', 'https://objects.{region}.cloudscale.ch')
+OBJECTS_URL = OBJECTS_URL.rstrip('/')
+if '{region}' not in OBJECTS_URL:
+    raise RuntimeError(
+        'The CLOUDSCALE_OBJECTS_URL variable must contain the "{region}" '
+        'template.'
+    )
 
 # One external ping target per IP version, that is assumed to be online
 PUBLIC_PING_TARGETS = {

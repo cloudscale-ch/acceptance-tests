@@ -1,3 +1,4 @@
+import boto3
 import re
 import requests
 import time
@@ -5,6 +6,7 @@ import time
 from constants import API_TOKEN
 from constants import API_URL
 from constants import LOCKS_PATH
+from constants import OBJECTS_URL
 from constants import PROCESS_ID
 from constants import RUNNER_ID
 from errors import Timeout
@@ -12,6 +14,7 @@ from events import trigger
 from filelock import FileLock
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
+from resources import ObjectsUser
 from urllib.parse import urlparse
 
 
@@ -81,11 +84,13 @@ class API(requests.Session):
             agent_suffix = ''
 
         self.api_url = API_URL
+        self.objects_url = OBJECTS_URL
         self.headers['Authorization'] = f'Bearer {API_TOKEN}'
         self.headers['User-Agent'] = f'Acceptance Tests{agent_suffix}'
         self.hooks = {'response': self.on_response}
         self.scope = scope
         self.read_only = read_only
+        self.zone = zone
 
         # 8 Retries @ 2.5 backoff_factor = 10.6 minutes
         retry_strategy = RetryStrategy(
@@ -99,6 +104,10 @@ class API(requests.Session):
 
         self.mount("https://", adapter)
 
+        # This is None, when running "invoke cleanup"
+        if self.zone:
+            self.objects_endpoint = self.objects_endpoint_for(self.zone)
+
     def post(self, url, data=None, json=None, add_tags=True, **kwargs):
         assert not data, "Please only use json, not data"
 
@@ -107,6 +116,7 @@ class API(requests.Session):
                 'runner': RUNNER_ID,
                 'process': PROCESS_ID,
                 'scope': self.scope,
+                'zone': self.zone,
             }
 
         return super().post(url, data=data, json=json, **kwargs)
@@ -156,6 +166,7 @@ class API(requests.Session):
         yield from resources('/networks')
         yield from resources('/server-groups')
         yield from resources('/custom-images')
+        yield from resources('/objects-users')
 
     def cleanup(self, limit_to_scope=True, limit_to_process=True):
         """ Deletes resources created by this API object. """
@@ -178,6 +189,9 @@ class API(requests.Session):
 
         if exceptions:
             raise ExceptionGroup("Failures during cleanup.", exceptions)
+
+    def objects_endpoint_for(self, zone):
+        return self.objects_url.format(region=zone.rstrip('0123456789'))
 
 
 def delete_handler(path):
@@ -244,3 +258,25 @@ def delete_volume_snapshots(api, url):
             f'Snapshot failed to delete within 60 seconds. Status '
             f'is still "{snapshot.json()["status"]}".'
         )
+
+
+@delete_handler(path='/v1/objects-users/.+')
+def delete_objects_users(api, url):
+    """ Before deleting an objects user, we have to delete owned buckets. """
+
+    user = ObjectsUser.from_href(None, api, url, name="")
+    user.wait_for_access()
+
+    session = boto3.Session(
+        aws_access_key_id=user.keys[0]['access_key'],
+        aws_secret_access_key=user.keys[0]['secret_key'],
+    )
+
+    objects_endpoint = api.objects_endpoint_for(zone=user.tags['zone'])
+    s3 = session.resource('s3', endpoint_url=objects_endpoint)
+
+    for bucket in s3.buckets.all():
+        bucket.objects.all().delete()
+        bucket.delete()
+
+    api.request("DELETE", url)

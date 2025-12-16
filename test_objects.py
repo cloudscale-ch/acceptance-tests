@@ -9,8 +9,13 @@ service and serve it without the need to manage their own storage system.
 """
 
 import boto3
+import json
 import requests
 import secrets
+import time
+
+from util import flatten
+from util import setup_notification_endpoint
 
 from urllib.parse import urlparse
 
@@ -59,3 +64,90 @@ def test_bucket_urls(objects_endpoint, access_key, secret_key):
         response = requests.get(url)
         assert response.status_code == 200
         assert response.text == "test"
+
+
+def test_notifications(
+    bucket,
+    access_key,
+    secret_key,
+    objects_endpoint,
+    server,
+    region,
+):
+    """ Using S3 SNS (Simple Notification Service) we can be informed via
+    webhooks, when something changes on a bucket.
+
+    """
+
+    # Run a service that can act as a webhook endpoint
+    setup_notification_endpoint(server)
+
+    # Get an SNS client (Simple Notification Service)
+    sns = boto3.client(
+        'sns',
+        endpoint_url=objects_endpoint,
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        region_name='default',
+    )
+
+    # Create a test topic
+    name = f"at-{secrets.token_hex(8)}"
+
+    topic = sns.create_topic(Name=name, Attributes={
+        "push-endpoint": f"http://{server.ip('public', 4)}:8000",
+    })
+
+    # Get notified whenever an object is created
+    bucket.Notification().put(NotificationConfiguration={
+        "TopicConfigurations": [
+            {
+                "Id": name,
+                "TopicArn": topic['TopicArn'],
+                "Events": ["s3:ObjectCreated:*"]
+            }
+        ]
+    })
+
+    # We have to wait a moment for the configuration to propagate
+    timeout = time.monotonic() + 30
+
+    while time.monotonic() < timeout:
+        bucket.put_object(Key='pre-check', Body=b'')
+
+        found = False
+        with server.get_file_handle('notification-body.log') as notifications:
+            for line in notifications:
+                n = json.loads(line)
+                for r in n['Records']:
+                    if r['s3']['object']['key'] == 'pre-check':
+                        found = True
+
+        if found:
+            break
+
+        time.sleep(1)
+
+    # Generate multiple notifications
+    for i in range(3):
+        bucket.put_object(Key=f'count-{i}', Body=b'')
+
+    # Ensure they were received (excluding the pre-check objects from above)
+    with server.get_file_handle('notification-body.log') as notification_log:
+        notifications = [json.loads(line) for line in notification_log
+                         if 'pre-check' not in line]
+
+    # A single message may contain multiple records
+    records = flatten(m['Records'] for m in notifications)
+    assert len(records) == 3
+
+    # The records are sent in order
+    assert records[0]['s3']['object']['key'] == 'count-0'
+    assert records[1]['s3']['object']['key'] == 'count-1'
+    assert records[2]['s3']['object']['key'] == 'count-2'
+
+    # They all share some properties
+    for record in records:
+        assert record['eventName'] == 'ObjectCreated:Put'
+        assert record['awsRegion'] == region
+        assert record['s3']['bucket']['name'] == bucket.name

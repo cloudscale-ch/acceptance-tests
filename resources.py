@@ -980,6 +980,11 @@ class Server(CloudscaleResource):
 
             self.put_file(f.name, remote_filename, sudo)
 
+    def get_file_handle(self, remote_filename):
+
+        sftp = self.host.backend.client.open_sftp()
+        return sftp.open(remote_filename)
+
     def enable_dhcp_in_networkd(self, interface):
         """ Additional private network interfaces have to be explicitly
         configured to use DHCP, to get an IP address.

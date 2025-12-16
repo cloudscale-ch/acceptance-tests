@@ -1,0 +1,67 @@
+#!/usr/bin/env -S python3 -u
+# Note: It's important to use unbuffered output, otherwise log
+# lines won't appear in the journal immediately.
+""" HTTP test server for object storage notifications tests
+
+This server acts as the endpoint for the Simple Notification Service (SNS).
+
+This is based on the HTTP server included in the http.server standard library
+module. It has the following features:
+* Only responds to POST requests. All other requests are not handled. No access
+  to the filesystem is possible.
+* The body of the request is logged to a separate log file.
+"""
+
+import http.server
+import ssl
+
+from argparse import ArgumentParser
+from http import HTTPStatus
+from pathlib import Path
+
+
+class SNSEndpointRequestHandler(http.server.BaseHTTPRequestHandler):
+
+    server_version = f'SNSEndpointTestHTTP/{http.server.__version__}'
+    protocol_version = 'HTTP/1.1'
+
+    def do_POST(self):
+
+        # Log some details about the notification record
+        length = int(self.headers.get('content-length', 0))
+        if length:
+            body = self.rfile.read(length)
+
+            with body_log_file.open('ab') as body_log:
+                body_log.write(body + b'\n')
+
+        self.send_response(HTTPStatus.NO_CONTENT)
+        self.end_headers()
+
+
+parser = ArgumentParser()
+parser.add_argument('--ssl', action='store_true')
+parser.add_argument('--port', type=int, default=8000)
+parser.add_argument('--body-log', default='notification-body.log')
+
+args = parser.parse_args()
+
+with http.server.ThreadingHTTPServer(
+        ('', args.port),
+        SNSEndpointRequestHandler
+) as server:
+    print(f'SNS Endpoint test HTTP server running on '
+          f'{":".join(map(str, server.server_address))}')
+    if args.ssl:
+        context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        context.load_cert_chain('./server.pem')
+        server.socket = context.wrap_socket(server.socket, server_side=True)
+
+    body_log_file = Path(args.body_log)
+
+    # Create an empty log file
+    if body_log_file.exists():
+        body_log_file.unlink()
+    body_log_file.touch()
+
+    server.serve_forever()

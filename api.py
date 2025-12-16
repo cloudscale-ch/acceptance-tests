@@ -279,4 +279,17 @@ def delete_objects_users(api, url):
         bucket.objects.all().delete()
         bucket.delete()
 
+    sns = boto3.client(
+        'sns',
+        endpoint_url=objects_endpoint,
+        aws_access_key_id=user.keys[0]['access_key'],
+        aws_secret_access_key=user.keys[0]['secret_key'],
+        region_name='default',
+    )
+
+    for topic in sns.list_topics().get('Topics', ()):
+        arn = topic["TopicArn"]
+        assert re.match(r'arn:aws:sns:(rma|lpg)::at-.+', arn)
+        sns.delete_topic(TopicArn=arn)
+
     api.request("DELETE", url)

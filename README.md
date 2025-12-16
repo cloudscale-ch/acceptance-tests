@@ -45,6 +45,7 @@ These tests are run regularly against our public infrastructure as well as our i
 |                           | [test_ping](./test_load_balancer.py#L855)                                        | default  |
 | **Nested Virtualization** | [test_virtualization_support](./test_nested_virtualization.py#L14)               | default  |
 |                           | [test_run_nested_vm](./test_nested_virtualization.py#L40)                        | default  |
+| **Objects**               | [test_bucket_urls](./test_objects.py#L16)                                        | default  |
 | **Private Network**       | [test_private_ip_address_on_all_images](./test_private_network.py#L14)           | all      |
 |                           | [test_private_network_connectivity_on_all_images](./test_private_network.py#L35) | all      |
 |                           | [test_multiple_private_network_interfaces](./test_private_network.py#L88)        | default  |

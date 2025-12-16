@@ -879,3 +879,21 @@ def secret_key(objects_user):
     """ An S3 secret key for the objects endpoint. """
 
     return objects_user.keys[0]["secret_key"]
+
+
+@pytest.fixture(scope='function')
+def bucket(objects_user, objects_endpoint):
+    """ A bucket wrapped in a boto3.S3.Bucket class. """
+
+    session = boto3.Session(
+        aws_access_key_id=objects_user.keys[0]['access_key'],
+        aws_secret_access_key=objects_user.keys[0]['secret_key'],
+    )
+
+    s3 = session.resource('s3', endpoint_url=f"https://{objects_endpoint}")
+
+    bucket = s3.create_bucket(Bucket=f"at-{secrets.token_hex(8)}")
+    yield bucket
+
+    bucket.objects.all().delete()
+    bucket.delete()

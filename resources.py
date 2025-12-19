@@ -30,6 +30,11 @@ from util import oneliner
 from util import RESOURCE_NAME_PREFIX
 from util import SERVER_START_TIMEOUT
 from uuid import uuid4
+from warnings import warn
+
+
+class DADFailed(Exception):
+    pass
 
 
 class CloudscaleResource:
@@ -331,6 +336,8 @@ class Server(CloudscaleResource):
 
         # Validate IPv6 if necessary
         if self.spec['use_ipv6'] and self.has_public_interface:
+            timeout = 60
+
             for attempt in range(2):
 
                 # There is an issue with DAD on recently used IPv6 addresses,
@@ -340,13 +347,24 @@ class Server(CloudscaleResource):
                 # When this happens, we force DAD to be repeated once, by
                 # removing, then re-adding the IPV6 address on the public
                 # interface.
+
                 try:
-                    self.wait_for_non_tentative_ipv6()
-                except TimeoutError:
+                    self.wait_for_non_tentative_ipv6(timeout=timeout)
+                except DADFailed as e:
                     if attempt == 0:
+                        # Output a warning at the end of the test run
+                        warn(f"DAD failed on first try: {' '.join(e.args)}")
+
+                        # Wait for the fabric cache to expire
+                        time.sleep(15)
+
+                        # Re-add IPv6, to trigger DAD
                         self.readd_public_ipv6()
+
+                        # Use a lower timeout for the second try
+                        timeout = 30
                     else:
-                        raise
+                        raise e
 
             self.wait_for_ipv6_default_route()
 
@@ -399,6 +417,9 @@ class Server(CloudscaleResource):
 
         while datetime.utcnow() <= until:
             output = self.output_of('sudo ip a')
+
+            if 'dadfailed' in output:
+                raise DADFailed(f"DAD failed. Last output: {output}")
 
             for line in output.splitlines():
                 if preferred.match(line):

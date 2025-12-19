@@ -26,6 +26,7 @@ from functools import cached_property, lru_cache
 from hashlib import blake2b
 from ipaddress import ip_address
 from ipaddress import ip_network
+from itertools import chain
 from paramiko import SSHClient, AutoAddPolicy
 from paramiko.ssh_exception import ChannelException
 from paramiko.ssh_exception import NoValidConnectionsError
@@ -856,3 +857,9 @@ def skip_test_when(match, reason=None):
             pytest.skip(reason)
 
         raise
+
+
+def flatten(list_of_lists):
+    """ Flatten one level of nesting. """
+
+    return list(chain.from_iterable(list_of_lists))

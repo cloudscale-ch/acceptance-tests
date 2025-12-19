@@ -1,3 +1,5 @@
+import boto3
+import re
 import requests
 import time
 
@@ -11,6 +13,12 @@ from events import trigger
 from filelock import FileLock
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
+from resources import ObjectsUser
+from urllib.parse import urlparse
+
+
+# Contains delete handlers, see delete_handler below
+DELETE_HANDLERS = {}
 
 
 class CloudscaleHTTPAdapter(HTTPAdapter):
@@ -80,6 +88,7 @@ class API(requests.Session):
         self.hooks = {'response': self.on_response}
         self.scope = scope
         self.read_only = read_only
+        self.zone = zone
 
         # 8 Retries @ 2.5 backoff_factor = 10.6 minutes
         retry_strategy = RetryStrategy(
@@ -93,6 +102,10 @@ class API(requests.Session):
 
         self.mount("https://", adapter)
 
+        # This is None, when running "invoke cleanup"
+        if self.zone:
+            self.objects_endpoint = self.objects_endpoint_for(self.zone)
+
     def post(self, url, data=None, json=None, add_tags=True, **kwargs):
         assert not data, "Please only use json, not data"
 
@@ -101,34 +114,13 @@ class API(requests.Session):
                 'runner': RUNNER_ID,
                 'process': PROCESS_ID,
                 'scope': self.scope,
+                'zone': self.zone,
             }
 
         return super().post(url, data=data, json=json, **kwargs)
 
     def delete(self, url):
-        super().delete(url)
-
-        # Wait for snapshots to be deleted
-        if 'volume-snapshots' in url:
-            timeout = time.monotonic() + 60
-
-            while time.monotonic() < timeout:
-                time.sleep(1)
-
-                try:
-                    snapshot = self.get(url)
-                except requests.exceptions.HTTPError as e:
-                    if e.response.status_code == 404:
-                        # The snapshot is gone, stop waiting
-                        break
-                    else:
-                        raise e
-
-            else:
-                raise Timeout(
-                    f'Snapshot failed to delete within 60 seconds. Status '
-                    f'is still "{snapshot.json()["status"]}".'
-                )
+        delete_handler_for_url(url)(api=self, url=url)
 
     def on_response(self, response, *args, **kwargs):
         trigger('request.after', request=response.request, response=response)
@@ -172,6 +164,7 @@ class API(requests.Session):
         yield from resources('/networks')
         yield from resources('/server-groups')
         yield from resources('/custom-images')
+        yield from resources('/objects-users')
 
     def cleanup(self, limit_to_scope=True, limit_to_process=True):
         """ Deletes resources created by this API object. """
@@ -194,3 +187,116 @@ class API(requests.Session):
 
         if exceptions:
             raise ExceptionGroup("Failures during cleanup.", exceptions)
+
+    def objects_endpoint_for(self, zone):
+        netloc = urlparse(self.api_url).netloc
+
+        if netloc.startswith("api"):
+            prefix = ""
+            tld = "ch"
+        else:
+            prefix = f"{netloc.split('-')[0]}-"
+            tld = "zone"
+
+        return f"{prefix}objects.{zone.rstrip('012345679')}.cloudscale.{tld}"
+
+
+def delete_handler(path):
+    """ Registers the decorated function as delete handler for the given
+    path. The path is treated as regular expression pattern, used to search
+    the path (not the whole URL).
+
+    The decorated function is supposed to delete the given URL.
+
+    """
+
+    def delete_handler_decorator(fn):
+        DELETE_HANDLERS[path] = fn
+        return fn
+    return delete_handler_decorator
+
+
+def delete_handler_for_url(url):
+    """ Evaluates the registered delete handlers and picks the first matching
+    one, or a default.
+
+    The order of the evaluation is not strictly defined, handlers are
+    expected to not overlap.
+
+    """
+    path = urlparse(url).path
+
+    for pattern, fn in DELETE_HANDLERS.items():
+        if re.fullmatch(pattern, path):
+            return fn
+
+    # Use the low-level method, as we are downstream from api.delete and cannot
+    # call api.delete, lest we want an infinite loop.
+    return lambda api, url: api.request("DELETE", url)
+
+
+@delete_handler(path='/v1/volume-snapshots/.+')
+def delete_volume_snapshots(api, url):
+    """ When deleting volume-snapshots, we need to wait for the snapshots to
+    be deleted, or we won't be able to delete the servers later.
+
+    """
+
+    # Delete the snapshot first
+    api.request("DELETE", url)
+
+    # Wait for snapshots to be deleted
+    timeout = time.monotonic() + 60
+
+    while time.monotonic() < timeout:
+        time.sleep(1)
+
+        try:
+            snapshot = api.get(url)
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 404:
+                # The snapshot is gone, stop waiting
+                break
+            else:
+                raise e
+
+    else:
+        raise Timeout(
+            f'Snapshot failed to delete within 60 seconds. Status '
+            f'is still "{snapshot.json()["status"]}".'
+        )
+
+
+@delete_handler(path='/v1/objects-users/.+')
+def delete_objects_users(api, url):
+    """ Before deleting an objects user, we have to delete owned buckets. """
+
+    user = ObjectsUser.from_href(None, api, url, name="")
+    user.wait_for_access()
+
+    session = boto3.Session(
+        aws_access_key_id=user.keys[0]['access_key'],
+        aws_secret_access_key=user.keys[0]['secret_key'],
+    )
+
+    objects_endpoint = api.objects_endpoint_for(zone=user.tags['zone'])
+    s3 = session.resource('s3', endpoint_url=f"https://{objects_endpoint}")
+
+    for bucket in s3.buckets.all():
+        bucket.objects.all().delete()
+        bucket.delete()
+
+    sns = boto3.client(
+        'sns',
+        endpoint_url=f"https://{objects_endpoint}",
+        aws_access_key_id=user.keys[0]['access_key'],
+        aws_secret_access_key=user.keys[0]['secret_key'],
+        region_name='default',
+    )
+
+    for topic in sns.list_topics().get('Topics', ()):
+        arn = topic["TopicArn"]
+        assert re.match(r'arn:aws:sns:(rma|lpg)::at-.+', arn)
+        sns.delete_topic(TopicArn=arn)
+
+    api.request("DELETE", url)

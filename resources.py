@@ -30,6 +30,11 @@ from util import oneliner
 from util import RESOURCE_NAME_PREFIX
 from util import SERVER_START_TIMEOUT
 from uuid import uuid4
+from warnings import warn
+
+
+class DADFailed(Exception):
+    pass
 
 
 class CloudscaleResource:
@@ -331,7 +336,36 @@ class Server(CloudscaleResource):
 
         # Validate IPv6 if necessary
         if self.spec['use_ipv6'] and self.has_public_interface:
-            self.wait_for_non_tentative_ipv6()
+            timeout = 60
+
+            for attempt in range(2):
+
+                # There is an issue with DAD on recently used IPv6 addresses,
+                # rarely observed during automated tests, which launch loads
+                # of VMs in quick succession.
+                #
+                # When this happens, we force DAD to be repeated once, by
+                # removing, then re-adding the IPV6 address on the public
+                # interface.
+
+                try:
+                    self.wait_for_non_tentative_ipv6(timeout=timeout)
+                except DADFailed as e:
+                    if attempt == 0:
+                        # Output a warning at the end of the test run
+                        warn(f"DAD failed on first try: {' '.join(e.args)}")
+
+                        # Wait for the fabric cache to expire
+                        time.sleep(15)
+
+                        # Re-add IPv6, to trigger DAD
+                        self.readd_public_ipv6()
+
+                        # Use a lower timeout for the second try
+                        timeout = 30
+                    else:
+                        raise e
+
             self.wait_for_ipv6_default_route()
 
             # By default, `ndisc_notify` is turned off in most Linux
@@ -384,6 +418,9 @@ class Server(CloudscaleResource):
         while datetime.utcnow() <= until:
             output = self.output_of('sudo ip a')
 
+            if 'dadfailed' in output:
+                raise DADFailed(f"DAD failed. Last output: {output}")
+
             for line in output.splitlines():
                 if preferred.match(line):
                     return
@@ -392,6 +429,16 @@ class Server(CloudscaleResource):
 
         raise Timeout(
             f'Wait for non-tentative IPv6 timed-out. Last output: {output}')
+
+    @with_trigger('server.reset-public-ipv6')
+    def readd_public_ipv6(self):
+        """ Removes, then adds the public IPv6 address, to trigger DAD. """
+
+        address = self.ip('public', 6)
+        interface = self.public_interface.name
+
+        self.assert_run(f'sudo ip -6 addr del {address} dev {interface}')
+        self.assert_run(f'sudo ip -6 addr add {address} dev {interface}')
 
     @with_trigger('server.wait-for-ipv6-default-route')
     def wait_for_ipv6_default_route(self, timeout=30):

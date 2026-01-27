@@ -62,12 +62,12 @@ function is-supported-python() {
     minor="$(python3 -c 'import sys; print(sys.version_info[1])')"
 
     if (( major < 3 )); then
-        echo "Python $major.$minor is too old, please use 3.6+"
+        echo "Python $major.$minor is too old, please use >= 3.11"
         false; return
     fi
 
-    if (( minor < 6 )); then
-        echo "Python $major.$minor is too old, please use 3.6+"
+    if (( minor < 11 )); then
+        echo "Python $major.$minor is too old, please use >= 3.11"
         false; return
     fi
 

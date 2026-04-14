@@ -26,6 +26,7 @@ from functools import cached_property, lru_cache
 from hashlib import blake2b
 from ipaddress import ip_address
 from ipaddress import ip_network
+from itertools import chain
 from paramiko import SSHClient, AutoAddPolicy
 from paramiko.ssh_exception import ChannelException
 from paramiko.ssh_exception import NoValidConnectionsError
@@ -733,6 +734,25 @@ def setup_lbaas_backend(backend, backend_network, ssl=False, protocol='tcp'):
         raise AssertionError(f'Unknown protocol: {protocol}')
 
 
+def setup_notification_endpoint(endpoint):
+    """ Configures a server to work as a S3 SNS notification endpoint.
+
+    A simple HTTP test server is started to serve a webhook URL for a S3 SNS
+    notification endpoint.
+    """
+
+    # Copy test server Python script to backend server
+    endpoint.put_file('scripts/sns-endpoint-test-server')
+    endpoint.run('chmod +x sns-endpoint-test-server')
+
+    endpoint.run(oneliner(f'''
+        systemd-run
+        --user
+        --unit sns-endpoint
+        ./sns-endpoint-test-server
+    '''))
+
+
 def wait_for_url_ready(url, prober, content=None, timeout=90):
     """ Waits for an URL to return an OK status code or specific content. """
 
@@ -856,3 +876,9 @@ def skip_test_when(match, reason=None):
             pytest.skip(reason)
 
         raise
+
+
+def flatten(list_of_lists):
+    """ Flatten one level of nesting. """
+
+    return list(chain.from_iterable(list_of_lists))

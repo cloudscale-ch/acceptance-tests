@@ -81,6 +81,9 @@ SERVER_START_TIMEOUT = 240
 # How many resources may be spawned in parallel in a single call
 RESOURCE_CREATION_CONCURRENCY_LIMIT = 2
 
+# How many seconds in between parallel server starts
+SERVER_START_STAGGERING_TIME = 5
+
 # Where events are logged
 EVENTS_PATH = 'events'
 

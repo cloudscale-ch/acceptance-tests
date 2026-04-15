@@ -13,6 +13,7 @@ from constants import REPEATED_WHITE_SPACE
 from constants import RESOURCE_CREATION_CONCURRENCY_LIMIT
 from constants import RESOURCE_NAME_PREFIX
 from constants import RUNTIME_PATH
+from constants import SERVER_START_STAGGERING_TIME
 from constants import SERVER_START_TIMEOUT
 from contextlib import closing
 from contextlib import contextmanager
@@ -168,7 +169,24 @@ def in_parallel(factory, instances=None, count=None):
 
         s1, s2 = in_parallel(some_function, count=2)
 
+    Servers sharing the same server_group are separated by a short delay
+    to avoid race conditions during parallel creation.
+
     """
+
+    def needs_group_delay(instances):
+        group_ids = []
+
+        for instance in instances:
+            if not isinstance(instance, dict):
+                continue
+
+            groups = instance.get('server_groups') or []
+            group_ids.extend(groups)
+
+        # If the list is longer than the set it has duplicate elements and
+        # delaying is necessary
+        return len(group_ids) > len(set(group_ids))
 
     def create(instance):
         if isinstance(instance, dict):
@@ -183,13 +201,28 @@ def in_parallel(factory, instances=None, count=None):
     assert instances or count
     assert None in (instances, count)
 
-    if count:
+    if instances:
+        # Expand instance list, it might be a generator
+        instances = list(instances)
+    elif count:
         instances = [{}] * count
 
-    max_workers = RESOURCE_CREATION_CONCURRENCY_LIMIT
+    delay_creation = needs_group_delay(instances)
 
-    with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        return tuple(pool.map(create, instances))
+    max_workers = RESOURCE_CREATION_CONCURRENCY_LIMIT
+    staggering_delay = SERVER_START_STAGGERING_TIME
+
+    if delay_creation:
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            results = []
+            for index, instance in enumerate(instances):
+                if index > 0:
+                    time.sleep(staggering_delay)
+                results.append(pool.submit(create, instance))
+            return tuple(f.result() for f in results)
+    else:
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            return tuple(pool.map(create, instances))
 
 
 def oneliner(text, shrink=True):

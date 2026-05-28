@@ -1,3 +1,5 @@
+import boto3
+import botocore
 import re
 import secrets
 import textwrap
@@ -1025,6 +1027,11 @@ class Server(CloudscaleResource):
 
             self.put_file(f.name, remote_filename, sudo)
 
+    def get_file_handle(self, remote_filename):
+
+        sftp = self.host.backend.client.open_sftp()
+        return sftp.open(remote_filename)
+
     def enable_dhcp_in_networkd(self, interface):
         """ Additional private network interfaces have to be explicitly
         configured to use DHCP, to get an IP address.
@@ -1501,3 +1508,40 @@ class LoadBalancer(CloudscaleResource):
         for i in range(count):
             assert (prober.http_get(self.build_url(url='/hostname', port=port))
                     == backend.name)
+
+
+class ObjectsUser(CloudscaleResource):
+
+    def __init__(self, request, api, name):
+        super().__init__(request, api)
+
+        self.spec = {
+            'display_name': f'{RESOURCE_NAME_PREFIX}-{name}',
+        }
+
+    @with_trigger('objects-user.create')
+    def create(self):
+        self.info = self.api.post('/objects-users', json=self.spec).json()
+
+    def wait_for_access(self, timeout=30):
+        objects_endpoint = self.api.objects_endpoint_for(self.tags['zone'])
+
+        s3 = boto3.client(
+            's3',
+            endpoint_url=objects_endpoint,
+            aws_access_key_id=self.keys[0]["access_key"],
+            aws_secret_access_key=self.keys[0]["secret_key"],
+        )
+
+        timeout = time.monotonic() + 30
+        exception = None
+
+        while time.monotonic() < timeout:
+            try:
+                s3.list_buckets()
+                break
+            except botocore.exceptions.ClientError as e:
+                exception = e
+                time.sleep(1)
+        else:
+            raise TimeoutError from exception

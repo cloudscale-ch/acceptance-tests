@@ -255,7 +255,7 @@ def pytest_generate_tests(metafunc):
     )
 
 
-def pytest_report_header(config, startdir):
+def pytest_report_header(config, start_path):
     """ Announces test parameters in the session header. """
 
     # Announce the API parameters

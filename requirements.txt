@@ -6,7 +6,7 @@ isodate
 observable
 paramiko
 psutil
-pytest
+pytest>=7.0.0
 pytest-repeat
 pytest-testinfra
 pytest-xdist

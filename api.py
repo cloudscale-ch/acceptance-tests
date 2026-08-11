@@ -166,6 +166,7 @@ class API(requests.Session):
         yield from resources('/volume-snapshots')
         yield from resources('/servers')
         yield from resources('/load-balancers')
+        yield from resources('/routers')
         yield from resources('/volumes')
         yield from resources('/floating-ips')
         yield from resources('/subnets')

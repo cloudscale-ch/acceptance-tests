@@ -21,6 +21,7 @@ from resources import CustomImage
 from resources import FloatingIP
 from resources import LoadBalancer
 from resources import Network
+from resources import Router
 from resources import Server
 from resources import ServerGroup
 from resources import Volume
@@ -827,5 +828,23 @@ def create_load_balancer_scenario(request, function_api, zone, prober, image,
                                      listener_protocol)
 
         return load_balancer, listener, pool, backends, private_network
+
+    return factory
+
+
+@pytest.fixture(scope='function')
+def create_router(request, function_api, zone):
+    """ Factory to create a router. """
+
+    def factory(name='router', internet_gateway=False):
+        router = Router(
+            request=request,
+            api=function_api,
+            name=name,
+            zone=zone,
+            internet_gateway=internet_gateway,
+        )
+        router.create()
+        return router
 
     return factory

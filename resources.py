@@ -1501,3 +1501,46 @@ class LoadBalancer(CloudscaleResource):
         for i in range(count):
             assert (prober.http_get(self.build_url(url='/hostname', port=port))
                     == backend.name)
+
+
+class Router(CloudscaleResource):
+
+    def __init__(self, request, api, name, zone, internet_gateway):
+
+        super().__init__(request, api)
+        self.spec = {
+            'name': generate_server_name(request, name),
+            'zone': zone,
+            'internet_gateway': internet_gateway,
+        }
+        self.interfaces = []
+
+    @with_trigger('router.create')
+    def create(self):
+        self.info = self.api.post('/routers', json=self.spec).json()
+
+    @with_trigger('router.add-interface')
+    def add_interface(self, network, subnet, address):
+        self.interfaces.append(self.api.post(
+            f'routers/{self.uuid}/interfaces',
+            json={
+                'network': network,
+                'addresses': [{"subnet": subnet, "address": address}]
+            },
+            # This request does not support tagging
+            add_tags=False).json())
+        return self.interfaces[-1]
+
+    @with_trigger('router.remove-interface')
+    def remove_interface(self, interface):
+        self.api.delete(f'routers/{self.uuid}/interfaces/{interface["uuid"]}')
+        self.interfaces = [x for x in self.interfaces
+                           if x['uuid'] != interface["uuid"]]
+
+    def delete(self):
+        for interface in self.interfaces:
+            self.api.delete(f'routers/{self.uuid}/interfaces/{interface["uuid"]}')
+            self.interfaces = [x for x in self.interfaces
+                               if x['uuid'] != interface["uuid"]]
+        self.api.delete(self.href)
+        self.info = {}

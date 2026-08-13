@@ -1537,10 +1537,9 @@ class Router(CloudscaleResource):
         self.interfaces = [x for x in self.interfaces
                            if x['uuid'] != interface["uuid"]]
 
+    # will be removed when interfaces become a toplevel resource
     def delete(self):
         for interface in self.interfaces:
-            self.api.delete(f'routers/{self.uuid}/interfaces/{interface["uuid"]}')
-            self.interfaces = [x for x in self.interfaces
-                               if x['uuid'] != interface["uuid"]]
+            self.remove_interface(interface)
         self.api.delete(self.href)
         self.info = {}

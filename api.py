@@ -188,6 +188,15 @@ class API(requests.Session):
             if limit_to_process and r['tags']['process'] != PROCESS_ID:
                 continue
 
+            # will be removed when interfaces become a toplevel resource
+            if 'routers' in r['href']:
+                for iface in r['interfaces']:
+                    href = f'routers/{r["uuid"]}/interfaces/{iface["uuid"]}'
+                    try:
+                        self.delete(href)
+                    except Exception as e:
+                        exceptions.append(e)
+
             try:
                 self.delete(r['href'])
             except Exception as e:

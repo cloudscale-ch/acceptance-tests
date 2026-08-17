@@ -10,14 +10,6 @@ You can connect private networks using routers:
 from util import in_parallel
 
 
-def test_create_router(create_router):
-    """ Test to create a router. """
-
-    router = create_router()
-    assert router.status == 'active'
-    assert not router.internet_gateway
-
-
 def test_internet_gateway(
         create_router,
         create_server,

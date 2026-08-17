@@ -79,10 +79,10 @@ def test_router_connected_private_networks(
     private_network_a = create_private_network()
     private_network_b = create_private_network()
     subnet_a = private_network_a.add_subnet(cidr='192.168.10.0/24',
-                                            # gateway_address='192.168.10.1',
+                                            gateway_address='192.168.10.1',
                                             )
     subnet_b = private_network_b.add_subnet(cidr='192.168.11.0/24',
-                                            # gateway_address='192.168.11.1',
+                                            gateway_address='192.168.11.1',
                                             )
 
     # Create router connecting the private networks
@@ -104,18 +104,18 @@ def test_router_connected_private_networks(
         image=image,
         interfaces=[
             {'network': 'public'},
-            {'network': private_network_a.uuid},
-            {'network': private_network_b.uuid},
         ],
     )
-    # plan B: assign private interfaces later, so they don't get gw via dhcp
-    # prober.update(
-    #     interfaces=[
-    #         {'network': 'public'},
-    #         {'network': private_network_a.uuid},
-    #         {'network': private_network_b.uuid},
-    #     ]
-    # )
+    prober.assert_run(f'sudo ip route replace $(ip route show default) metric 10')
+    prober.update(
+        interfaces=[
+            {'network': 'public'},
+            {'network': private_network_a.uuid},
+            {'network': private_network_b.uuid},
+        ]
+    )
+    prober.enable_dhcp_in_networkd(prober.interfaces[1])
+    prober.enable_dhcp_in_networkd(prober.interfaces[2])
 
     # Create servers each connected only to it's own private network
     s1, s2 = in_parallel(create_server, instances=(
@@ -140,8 +140,8 @@ def test_router_connected_private_networks(
     prober.ping(s2.ip('private', 4))
 
     # Configure default gateway
-    s1.assert_run(f'sudo ip route add default via 192.168.10.1')
-    s2.assert_run(f'sudo ip route add default via 192.168.11.1')
+    # s1.assert_run(f'sudo ip route add default via 192.168.10.1')
+    # s2.assert_run(f'sudo ip route add default via 192.168.11.1')
 
     # Each VM can ping the other over private IPv4
     s1.ping(s2.ip('private', 4), tries=5, wait=1)

@@ -433,6 +433,7 @@ def prober(create_server_for_session):
         image='debian-13', use_private_network=True)
 
 
+
 @pytest.fixture(scope='function')
 def server(create_server, image):
     """ Simple small default server with only public networking (v4 and v6).
@@ -846,5 +847,36 @@ def create_router(request, function_api, zone):
         )
         router.create()
         return router
+
+    return factory
+
+
+@pytest.fixture(scope='function')
+def create_jumphost(create_server, image, zone):
+    """ Factory to create a jumphost. """
+
+    def factory(private_networks=[]):
+        interfaces = [{'network': 'public'}]
+        jumphost = create_server(
+            name='jumphost',
+            image=image,
+            zone=zone,
+            interfaces=interfaces,
+        )
+
+        # Make current default route more important than later added ones.
+        jumphost.assert_run(f'sudo ip route replace \
+                        $(ip route show default) metric 10')
+
+        # Add private networks and start dhcp
+        for net in private_networks:
+            interfaces.append({'network': net.uuid})
+
+        jumphost.update(interfaces=interfaces)
+
+        for index in range(1, len(interfaces)):
+            jumphost.enable_dhcp_in_networkd(jumphost.interfaces[index])
+
+        return jumphost
 
     return factory

@@ -21,14 +21,15 @@ def test_create_router(create_router):
 def test_internet_gateway(
         create_router,
         create_server,
-        image,
+        create_jumphost,
         private_network,
+        image,
 ):
     """ Test to create an internet gateway. """
 
     # Using a private network
     subnet = private_network.add_subnet(cidr='192.168.100.0/24',
-                                        # gateway_address='192.168.100.1',
+                                        gateway_address='192.168.100.1',
                                         )
 
     # Create router connecting the private network to public internet
@@ -40,14 +41,7 @@ def test_internet_gateway(
     )
 
     # Create prober/jumpost
-    prober = create_server(
-        name='jumphost',
-        image=image,
-        interfaces=[
-            {'network': 'public'},
-            {'network': private_network.uuid},
-        ],
-    )
+    prober = create_jumphost(private_networks=[private_network])
 
     # Create a server connected only to it's own private network
     private_server = create_server(
@@ -61,17 +55,16 @@ def test_internet_gateway(
     assert router.internet_gateway
     prober.ping(private_server.ip('private', 4))
 
-    # Configure default gateway
-    private_server.assert_run(f'sudo ip route add default via 192.168.100.1')
-
+    # Ping a public IP
     private_server.ping('8.8.8.8', tries=5, wait=1)
 
 
 def test_router_connected_private_networks(
         create_router,
         create_server,
-        image,
+        create_jumphost,
         create_private_network,
+        image,
 ):
     """ Test to create an router between two private networks. """
 
@@ -99,23 +92,8 @@ def test_router_connected_private_networks(
     )
 
     # Create prober/jumpost
-    prober = create_server(
-        name='jumphost',
-        image=image,
-        interfaces=[
-            {'network': 'public'},
-        ],
-    )
-    prober.assert_run(f'sudo ip route replace $(ip route show default) metric 10')
-    prober.update(
-        interfaces=[
-            {'network': 'public'},
-            {'network': private_network_a.uuid},
-            {'network': private_network_b.uuid},
-        ]
-    )
-    prober.enable_dhcp_in_networkd(prober.interfaces[1])
-    prober.enable_dhcp_in_networkd(prober.interfaces[2])
+    prober = create_jumphost(private_networks=[private_network_a,
+                                               private_network_b])
 
     # Create servers each connected only to it's own private network
     s1, s2 = in_parallel(create_server, instances=(
@@ -138,10 +116,6 @@ def test_router_connected_private_networks(
 
     prober.ping(s1.ip('private', 4))
     prober.ping(s2.ip('private', 4))
-
-    # Configure default gateway
-    # s1.assert_run(f'sudo ip route add default via 192.168.10.1')
-    # s2.assert_run(f'sudo ip route add default via 192.168.11.1')
 
     # Each VM can ping the other over private IPv4
     s1.ping(s2.ip('private', 4), tries=5, wait=1)

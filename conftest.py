@@ -433,7 +433,6 @@ def prober(create_server_for_session):
         image='debian-13', use_private_network=True)
 
 
-
 @pytest.fixture(scope='function')
 def server(create_server, image):
     """ Simple small default server with only public networking (v4 and v6).

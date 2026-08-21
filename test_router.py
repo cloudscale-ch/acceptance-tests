@@ -8,6 +8,7 @@ private networks to the internet through routers acting as internet gateways:
 
 """
 
+from constants import PUBLIC_PING_TARGETS
 from util import in_parallel
 
 
@@ -44,7 +45,7 @@ def test_internet_gateway(
     )
 
     # Ping a public IP
-    private_server.ping('8.8.8.8', tries=5, wait=1)
+    private_server.ping(PUBLIC_PING_TARGETS[4], tries=5, wait=1)
 
 
 def test_router_connected_private_networks(

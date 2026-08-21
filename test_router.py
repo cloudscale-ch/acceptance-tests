@@ -83,8 +83,8 @@ def test_router_connected_private_networks(
     )
 
     # Create prober/jumpost
-    prober = create_jumphost(private_networks=[private_network_a,
-                                               private_network_b])
+    jumphost = create_jumphost(private_networks=[private_network_a,
+                                                 private_network_b])
 
     # Create servers each connected only to it's own private network
     s1, s2 = in_parallel(create_server, instances=(
@@ -92,21 +92,21 @@ def test_router_connected_private_networks(
             'name': 's1',
             'image': image,
             'interfaces': [{'network': private_network_a.uuid}],
-            'jump_host': prober,
+            'jump_host': jumphost,
         },
         {
             'name': 's2',
             'image': image,
             'interfaces': [{'network': private_network_b.uuid}],
-            'jump_host': prober,
+            'jump_host': jumphost,
         },
     ))
 
     assert router.status == 'active'
     assert not router.internet_gateway
 
-    prober.ping(s1.ip('private', 4))
-    prober.ping(s2.ip('private', 4))
+    jumphost.ping(s1.ip('private', 4))
+    jumphost.ping(s2.ip('private', 4))
 
     # Each server can ping the other over private IPv4
     s1.ping(s2.ip('private', 4), tries=5, wait=1)

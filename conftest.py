@@ -849,17 +849,20 @@ def create_router(request, function_api, zone):
 
     return factory
 
+
 @pytest.fixture(scope='function')
 def router(create_router):
     """ Default router, internet gateway disabled. """
 
     return create_router(name='router')
 
+
 @pytest.fixture(scope='function')
 def internet_gateway(create_router):
     """ Default Internet Gateway. """
 
     return create_router(name='internet_gateway', internet_gateway=True)
+
 
 @pytest.fixture(scope='function')
 def create_jumphost(create_server, image, zone):

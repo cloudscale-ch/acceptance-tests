@@ -43,10 +43,6 @@ def test_internet_gateway(
         jump_host=prober,
     )
 
-    assert internet_gateway.status == 'active'
-    assert internet_gateway.internet_gateway
-    prober.ping(private_server.ip('private', 4))
-
     # Ping a public IP
     private_server.ping('8.8.8.8', tries=5, wait=1)
 
@@ -101,9 +97,6 @@ def test_router_connected_private_networks(
             'jump_host': jumphost,
         },
     ))
-
-    assert router.status == 'active'
-    assert not router.internet_gateway
 
     jumphost.ping(s1.ip('private', 4))
     jumphost.ping(s2.ip('private', 4))

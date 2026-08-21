@@ -61,7 +61,7 @@ These tests are run regularly against our public infrastructure as well as our i
 |                           | [test_public_network_ipv4_only_on_all_images](./test_public_network.py#L186)     | all      |
 |                           | [test_reverse_ptr_record_of_server](./test_public_network.py#L207)               | default  |
 |                           | [test_reverse_ptr_record_of_floating_ip](./test_public_network.py#L231)          | default  |
-| **Router**                | [test_internet_gateway](./test_router.py#L13)                                    | default  |
+| **Router**                | [test_internet_gateway](./test_router.py#L14)                                    | default  |
 |                           | [test_router_connected_private_networks](./test_router.py#L54)                   | default  |
 | **Server**                | [test_change_flavor_from_flex_to_flex](./test_server.py#L21)                     | default  |
 |                           | [test_change_flavor_from_flex_to_plus](./test_server.py#L43)                     | default  |

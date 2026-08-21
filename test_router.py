@@ -3,7 +3,8 @@
 Routers
 =======
 
-You can connect private networks using routers:
+You can connect private networks to each other using routers, or connect
+private networks to the internet through routers acting as internet gateways:
 
 """
 

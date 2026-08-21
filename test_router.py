@@ -12,7 +12,7 @@ from util import in_parallel
 
 
 def test_internet_gateway(
-        create_router,
+        internet_gateway,
         create_server,
         create_jumphost,
         private_network,
@@ -25,9 +25,8 @@ def test_internet_gateway(
                                         gateway_address='192.168.100.1',
                                         )
 
-    # Create router connecting the private network to public internet
-    router = create_router(internet_gateway=True)
-    router.add_interface(
+    # Attach the internet_gateway to the private network
+    internet_gateway.add_interface(
         network=private_network.uuid,
         subnet=subnet.uuid,
         address="192.168.100.1"
@@ -44,8 +43,8 @@ def test_internet_gateway(
         jump_host=prober,
     )
 
-    assert router.status == 'active'
-    assert router.internet_gateway
+    assert internet_gateway.status == 'active'
+    assert internet_gateway.internet_gateway
     prober.ping(private_server.ip('private', 4))
 
     # Ping a public IP
@@ -53,7 +52,7 @@ def test_internet_gateway(
 
 
 def test_router_connected_private_networks(
-        create_router,
+        router,
         create_server,
         create_jumphost,
         create_private_network,
@@ -71,8 +70,7 @@ def test_router_connected_private_networks(
                                             gateway_address='192.168.11.1',
                                             )
 
-    # Create router connecting the private networks
-    router = create_router(internet_gateway=False)
+    # Attach the router to the private networks
     router.add_interface(
         network=private_network_a.uuid,
         subnet=subnet_a.uuid,
@@ -110,6 +108,6 @@ def test_router_connected_private_networks(
     prober.ping(s1.ip('private', 4))
     prober.ping(s2.ip('private', 4))
 
-    # Each VM can ping the other over private IPv4
+    # Each server can ping the other over private IPv4
     s1.ping(s2.ip('private', 4), tries=5, wait=1)
     s2.ping(s1.ip('private', 4), tries=5, wait=1)

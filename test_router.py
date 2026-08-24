@@ -33,15 +33,15 @@ def test_internet_gateway(
         address="192.168.100.1"
     )
 
-    # Create prober/jumpost
-    prober = create_jumphost(private_networks=[private_network])
+    # Create jumpost
+    jumpost = create_jumphost(private_networks=[private_network])
 
     # Create a server connected only to it's own private network
     private_server = create_server(
         name='private_server',
         image=image,
         interfaces=[{'network': private_network.uuid}],
-        jump_host=prober,
+        jump_host=jumpost,
     )
 
     # Ping a public IP
@@ -79,7 +79,7 @@ def test_router_connected_private_networks(
         address="192.168.11.1"
     )
 
-    # Create prober/jumpost
+    # Create jumpost
     jumphost = create_jumphost(private_networks=[private_network_a,
                                                  private_network_b])
 

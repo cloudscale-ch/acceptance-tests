@@ -877,10 +877,6 @@ def create_jumphost(create_server, image, zone):
             interfaces=interfaces,
         )
 
-        # Make current default route more important than later added ones.
-        jumphost.assert_run(f'sudo ip route replace \
-                        $(ip route show default) metric 10')
-
         # Add private networks and start dhcp
         for net in private_networks:
             interfaces.append({'network': net.uuid})
@@ -888,7 +884,10 @@ def create_jumphost(create_server, image, zone):
         jumphost.update(interfaces=interfaces)
 
         for index in range(1, len(interfaces)):
-            jumphost.enable_dhcp_in_networkd(jumphost.interfaces[index])
+            jumphost.enable_dhcp_in_networkd(
+                interface=jumphost.interfaces[index],
+                use_routes='false',
+            )
 
         return jumphost
 

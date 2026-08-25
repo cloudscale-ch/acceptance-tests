@@ -1025,7 +1025,7 @@ class Server(CloudscaleResource):
 
             self.put_file(f.name, remote_filename, sudo)
 
-    def enable_dhcp_in_networkd(self, interface):
+    def enable_dhcp_in_networkd(self, interface, use_routes='true'):
         """ Additional private network interfaces have to be explicitly
         configured to use DHCP, to get an IP address.
 
@@ -1041,6 +1041,9 @@ class Server(CloudscaleResource):
 
                 [Network]
                 DHCP=yes
+
+                [DHCPv4]
+                UseRoutes={use_routes}
             """),
             sudo=True,
         )

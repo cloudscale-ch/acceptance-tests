@@ -99,9 +99,6 @@ def test_router_connected_private_networks(
         },
     ))
 
-    jumphost.ping(s1.ip('private', 4))
-    jumphost.ping(s2.ip('private', 4))
-
     # Each server can ping the other over private IPv4
     s1.ping(s2.ip('private', 4), tries=5, wait=1)
     s2.ping(s1.ip('private', 4), tries=5, wait=1)

@@ -21,6 +21,7 @@ from resources import CustomImage
 from resources import FloatingIP
 from resources import LoadBalancer
 from resources import Network
+from resources import Router
 from resources import Server
 from resources import ServerGroup
 from resources import Volume
@@ -827,5 +828,67 @@ def create_load_balancer_scenario(request, function_api, zone, prober, image,
                                      listener_protocol)
 
         return load_balancer, listener, pool, backends, private_network
+
+    return factory
+
+
+@pytest.fixture(scope='function')
+def create_router(request, function_api, zone):
+    """ Factory to create a router. """
+
+    def factory(name='router', internet_gateway=False):
+        router = Router(
+            request=request,
+            api=function_api,
+            name=name,
+            zone=zone,
+            internet_gateway=internet_gateway,
+        )
+        router.create()
+        return router
+
+    return factory
+
+
+@pytest.fixture(scope='function')
+def router(create_router):
+    """ Default router, internet gateway disabled. """
+
+    return create_router(name='router')
+
+
+@pytest.fixture(scope='function')
+def internet_gateway(create_router):
+    """ Default Internet Gateway. """
+
+    return create_router(name='internet_gateway', internet_gateway=True)
+
+
+@pytest.fixture(scope='function')
+def create_jumphost(create_server, image, zone):
+    """ Factory to create a jumphost. """
+
+    def factory(private_networks=[]):
+        interfaces = [{'network': 'public'}]
+        jumphost = create_server(
+            name='jumphost',
+            image=image,
+            zone=zone,
+            interfaces=interfaces,
+        )
+
+        # Add private networks and start dhcp
+        for net in private_networks:
+            interfaces.append({'network': net.uuid})
+
+        jumphost.update(interfaces=interfaces)
+
+        for index in range(1, len(interfaces)):
+            jumphost.enable_dhcp_in_networkd(
+                interface=jumphost.interfaces[index],
+                use_routes='false',
+            )
+
+        return jumphost
 
     return factory

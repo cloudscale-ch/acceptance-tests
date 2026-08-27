@@ -166,6 +166,7 @@ class API(requests.Session):
         yield from resources('/volume-snapshots')
         yield from resources('/servers')
         yield from resources('/load-balancers')
+        yield from resources('/routers')
         yield from resources('/volumes')
         yield from resources('/floating-ips')
         yield from resources('/subnets')
@@ -186,6 +187,15 @@ class API(requests.Session):
 
             if limit_to_process and r['tags']['process'] != PROCESS_ID:
                 continue
+
+            # will be removed when interfaces become a toplevel resource
+            if 'routers' in r['href']:
+                for iface in r['interfaces']:
+                    href = f'routers/{r["uuid"]}/interfaces/{iface["uuid"]}'
+                    try:
+                        self.delete(href)
+                    except Exception as e:
+                        exceptions.append(e)
 
             try:
                 self.delete(r['href'])

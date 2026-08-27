@@ -1025,7 +1025,7 @@ class Server(CloudscaleResource):
 
             self.put_file(f.name, remote_filename, sudo)
 
-    def enable_dhcp_in_networkd(self, interface):
+    def enable_dhcp_in_networkd(self, interface, use_routes='true'):
         """ Additional private network interfaces have to be explicitly
         configured to use DHCP, to get an IP address.
 
@@ -1041,6 +1041,9 @@ class Server(CloudscaleResource):
 
                 [Network]
                 DHCP=yes
+
+                [DHCPv4]
+                UseRoutes={use_routes}
             """),
             sudo=True,
         )
@@ -1501,3 +1504,45 @@ class LoadBalancer(CloudscaleResource):
         for i in range(count):
             assert (prober.http_get(self.build_url(url='/hostname', port=port))
                     == backend.name)
+
+
+class Router(CloudscaleResource):
+
+    def __init__(self, request, api, name, zone, internet_gateway):
+
+        super().__init__(request, api)
+        self.spec = {
+            'name': generate_server_name(request, name),
+            'zone': zone,
+            'internet_gateway': internet_gateway,
+        }
+        self.interfaces = []
+
+    @with_trigger('router.create')
+    def create(self):
+        self.info = self.api.post('/routers', json=self.spec).json()
+
+    @with_trigger('router.add-interface')
+    def add_interface(self, network, subnet, address):
+        self.interfaces.append(self.api.post(
+            f'routers/{self.uuid}/interfaces',
+            json={
+                'network': network,
+                'addresses': [{"subnet": subnet, "address": address}]
+            },
+            # This request does not support tagging
+            add_tags=False).json())
+        return self.interfaces[-1]
+
+    @with_trigger('router.remove-interface')
+    def remove_interface(self, interface):
+        self.api.delete(f'routers/{self.uuid}/interfaces/{interface["uuid"]}')
+        self.interfaces = [x for x in self.interfaces
+                           if x['uuid'] != interface["uuid"]]
+
+    # will be removed when interfaces become a toplevel resource
+    def delete(self):
+        for interface in self.interfaces:
+            self.remove_interface(interface)
+        self.api.delete(self.href)
+        self.info = {}

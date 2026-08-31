@@ -147,7 +147,7 @@ def generate_server_name(request, original_name=''):
     # Truncate name to 63 characters, but keep the caller supplied name. This
     # part might be important to distinguish different servers in a test
     if len(name) > 63:
-        name = f'{name[:63-len(original_name)-1]}-{original_name.lower()}'
+        name = f'{name[:63 - len(original_name) - 1]}-{original_name.lower()}'
 
     # Remove - at the start or end
     name = name.strip('-')
@@ -822,6 +822,28 @@ def unique(iterable):
     """ Returns a set of unique values from an interable object (eg. list) """
 
     return set(iterable)
+
+
+class FakeBackend:
+    """ A fake Server for use as an LBaaS pool member with a fixed address,
+    for tests that exercise the control-plane API without real VMs.
+
+    Satisfies the duck-type expected by LoadBalancer.add_pool_member:
+    - name: used in the member resource name
+    - ip_address_config(): returns the address and subnet UUID
+
+    """
+
+    def __init__(self, name, address, subnet_uuid):
+        self.name = name
+        self._address = address
+        self._subnet_uuid = subnet_uuid
+
+    def ip_address_config(self, *args, **kwargs):
+        return {
+            'address': self._address,
+            'subnet': {'uuid': self._subnet_uuid},
+        }
 
 
 @contextmanager

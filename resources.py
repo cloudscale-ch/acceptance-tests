@@ -1522,6 +1522,10 @@ class Router(CloudscaleResource):
     def create(self):
         self.info = self.api.post('/routers', json=self.spec).json()
 
+    @with_trigger('router.update')
+    def update(self, **properties) -> None:
+        self.api.patch(self.href, json=properties)
+
     @with_trigger('router.add-interface')
     def add_interface(self, network, subnet, address):
         self.interfaces.append(self.api.post(

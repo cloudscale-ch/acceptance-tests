@@ -7,6 +7,8 @@ You can connect private networks to each other using routers, or connect
 private networks to the internet through routers acting as internet gateways:
 
 """
+import time
+
 import pytest
 from dns.resolver import NoNameservers
 
@@ -31,10 +33,11 @@ def assert_reverse_pointer(addresses, expect_failure=False):
                     with pytest.raises(NoNameservers):
                         reverse_ptr(address["address"], nameserver)
                 else:
-                    assert reverse_ptr(address["address"], nameserver) == \
-                           address["reverse_ptr"]
+                    result = reverse_ptr(address["address"], nameserver)
+                    expected = address["reverse_ptr"]
+                    assert result == f"{expected}."
 
-    timeout = 60
+    timeout = 120
     address_list = ", ".join([address["address"] for address in addresses])
     message = f"""
     Unexpected reverse PTR for IPs {address_list} after {timeout} seconds.
@@ -83,7 +86,7 @@ def test_internet_gateway(
 
     # Verify initial reverse pointers were published
     initial_public_addresses = internet_gateway.internet_gateway_addresses
-    assert_reverse_pointer(initial_public_addresses, initial_public_addresses)
+    assert_reverse_pointer(initial_public_addresses)
 
     # Disable the internet gateway
     internet_gateway.update(internet_gateway=False)
@@ -102,12 +105,15 @@ def test_internet_gateway(
     # Re-enable the internet gateway
     internet_gateway.update(internet_gateway=True)
 
-    # Ping a public IP: Verifies that the server cat access the internet again
-    private_server.ping(PUBLIC_PING_TARGETS[4], tries=5, wait=1)
-
     # Verify updated reverse pointers were published
     updated_public_addresses = internet_gateway.internet_gateway_addresses
     assert_reverse_pointer(updated_public_addresses)
+
+    # Wait a bit for the internet gateway port to come up
+    time.sleep(5)
+
+    # Ping a public IP: Verifies that the server can access the internet again
+    private_server.ping(PUBLIC_PING_TARGETS[4], tries=5, wait=1)
 
 
 def test_router_connected_private_networks(

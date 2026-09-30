@@ -9,43 +9,8 @@ private networks to the internet through routers acting as internet gateways:
 """
 import time
 
-import pytest
-from dns.resolver import NoNameservers
-
 from constants import PUBLIC_PING_TARGETS
-from util import in_parallel, reverse_ptr, nameservers, retry_for
-
-
-def assert_reverse_pointer(addresses, expect_failure=False):
-    """
-    Assert that the reverse pointer was published for the given addresses.
-
-    :param addresses: The address dicts to lookup
-    :param expect_failure: When set to `True` there should be no PTR record
-                           for this address (e.g., after router deletion).
-    :return:
-    """
-
-    def _assert_reverse_pointer():
-        for nameserver in nameservers("cloudscale.ch"):
-            for address in addresses:
-                if expect_failure:
-                    with pytest.raises(NoNameservers):
-                        reverse_ptr(address["address"], nameserver)
-                else:
-                    result = reverse_ptr(address["address"], nameserver)
-                    expected = address["reverse_ptr"]
-                    assert result == f"{expected}."
-
-    timeout = 120
-    address_list = ", ".join([address["address"] for address in addresses])
-    message = f"""
-    Unexpected reverse PTR for IPs {address_list} after {timeout} seconds.
-    """
-    retry_for(seconds=timeout).or_fail(
-        _assert_reverse_pointer,
-        msg=message
-    )
+from util import in_parallel, assert_reverse_pointer
 
 
 def test_internet_gateway(
@@ -155,7 +120,7 @@ def test_router_connected_private_networks(
         private_network_b
     ])
 
-    # Create servers each connected only to it"s own private network
+    # Create servers each connected only to its own private network
     s1, s2 = in_parallel(create_server, instances=(
         {
             "name": "s1",

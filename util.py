@@ -20,7 +20,7 @@ from contextlib import contextmanager
 from contextlib import suppress
 from datetime import datetime, timedelta
 from dns import reversename
-from dns.resolver import NXDOMAIN
+from dns.resolver import NXDOMAIN, NoNameservers
 from dns.resolver import Resolver
 from errors import Timeout
 from functools import cached_property, lru_cache
@@ -147,7 +147,7 @@ def generate_server_name(request, original_name=''):
     # Truncate name to 63 characters, but keep the caller supplied name. This
     # part might be important to distinguish different servers in a test
     if len(name) > 63:
-        name = f'{name[:63-len(original_name)-1]}-{original_name.lower()}'
+        name = f'{name[:63 - len(original_name) - 1]}-{original_name.lower()}'
 
     # Remove - at the start or end
     name = name.strip('-')
@@ -414,7 +414,7 @@ def matches_attributes(obj, **attributes):
     return True
 
 
-def retry_for(seconds, exceptions=(AssertionError, ), pause=1):
+def retry_for(seconds, exceptions=(AssertionError,), pause=1):
     """ Allows to retry functions for a while, causing either exceptions or
     warnings.
 
@@ -602,6 +602,38 @@ def reverse_ptr(address, ns):
         return str(resolver.resolve(reverse, 'PTR')[0])
     except NXDOMAIN:
         return None
+
+
+def assert_reverse_pointer(addresses, expect_failure=False):
+    """
+    Assert that the reverse pointer was published for the given addresses.
+
+    :param addresses: The address dicts to lookup
+    :param expect_failure: When set to `True` there should be no PTR record
+                           for this address (e.g., after router deletion).
+    :return:
+    """
+
+    def _assert_reverse_pointer():
+        for nameserver in nameservers("cloudscale.ch"):
+            for address in addresses:
+                if expect_failure:
+                    with pytest.raises(NoNameservers):
+                        reverse_ptr(address["address"], nameserver)
+                else:
+                    result = reverse_ptr(address["address"], nameserver)
+                    expected = address["reverse_ptr"]
+                    assert result == f"{expected}."
+
+    timeout = 120
+    address_list = ", ".join([address["address"] for address in addresses])
+    message = f"""
+    Unexpected reverse PTR for IPs {address_list} after {timeout} seconds.
+    """
+    retry_for(seconds=timeout).or_fail(
+        _assert_reverse_pointer,
+        msg=message
+    )
 
 
 def nameservers(zone):

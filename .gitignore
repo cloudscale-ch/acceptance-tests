@@ -12,3 +12,4 @@ venv
 
 # Contains private environment variables
 private
+.env

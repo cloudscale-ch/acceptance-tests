@@ -7,9 +7,10 @@ You can connect private networks to each other using routers, or connect
 private networks to the internet through routers acting as internet gateways:
 
 """
+import time
 
 from constants import PUBLIC_PING_TARGETS
-from util import in_parallel
+from util import in_parallel, assert_reverse_pointer
 
 
 def test_internet_gateway(
@@ -22,9 +23,10 @@ def test_internet_gateway(
     """ Test to create an internet gateway. """
 
     # Using a private network
-    subnet = private_network.add_subnet(cidr='192.168.100.0/24',
-                                        gateway_address='192.168.100.1',
-                                        )
+    subnet = private_network.add_subnet(
+        cidr="192.168.100.0/24",
+        gateway_address="192.168.100.1",
+    )
 
     # Attach the internet_gateway to the private network
     internet_gateway.add_interface(
@@ -36,15 +38,46 @@ def test_internet_gateway(
     # Create jumpost
     jumpost = create_jumphost(private_networks=[private_network])
 
-    # Create a server connected only to it's own private network
+    # Create a server connected only to its own private network
     private_server = create_server(
-        name='private_server',
+        name="private_server",
         image=image,
-        interfaces=[{'network': private_network.uuid}],
+        interfaces=[{"network": private_network.uuid}],
         jump_host=jumpost,
     )
 
-    # Ping a public IP
+    # Ping a public IP: Verifies that the server cat access the internet
+    private_server.ping(PUBLIC_PING_TARGETS[4], tries=5, wait=1)
+
+    # Verify initial reverse pointers were published
+    initial_public_addresses = internet_gateway.internet_gateway_addresses
+    assert_reverse_pointer(initial_public_addresses)
+
+    # Disable the internet gateway
+    internet_gateway.update(internet_gateway=False)
+
+    # Ping a public IP: Verifies that the server cannot access the internet
+    private_server.ping(
+        PUBLIC_PING_TARGETS[4],
+        tries=5,
+        wait=1,
+        expect_failure=True
+    )
+
+    # Verify initial reverse pointers were reset
+    assert_reverse_pointer(initial_public_addresses)
+
+    # Re-enable the internet gateway
+    internet_gateway.update(internet_gateway=True)
+
+    # Verify updated reverse pointers were published
+    updated_public_addresses = internet_gateway.internet_gateway_addresses
+    assert_reverse_pointer(updated_public_addresses)
+
+    # Wait a bit for the internet gateway port to come up
+    time.sleep(5)
+
+    # Ping a public IP: Verifies that the server can access the internet again
     private_server.ping(PUBLIC_PING_TARGETS[4], tries=5, wait=1)
 
 
@@ -55,17 +88,19 @@ def test_router_connected_private_networks(
         create_private_network,
         image,
 ):
-    """ Test to create an router between two private networks. """
+    """ Test to create a router between two private networks. """
 
     # Create two private networks
     private_network_a = create_private_network()
     private_network_b = create_private_network()
-    subnet_a = private_network_a.add_subnet(cidr='192.168.10.0/24',
-                                            gateway_address='192.168.10.1',
-                                            )
-    subnet_b = private_network_b.add_subnet(cidr='192.168.11.0/24',
-                                            gateway_address='192.168.11.1',
-                                            )
+    subnet_a = private_network_a.add_subnet(
+        cidr="192.168.10.0/24",
+        gateway_address="192.168.10.1",
+    )
+    subnet_b = private_network_b.add_subnet(
+        cidr="192.168.11.0/24",
+        gateway_address="192.168.11.1",
+    )
 
     # Attach the router to the private networks
     router.add_interface(
@@ -80,25 +115,27 @@ def test_router_connected_private_networks(
     )
 
     # Create jumpost
-    jumphost = create_jumphost(private_networks=[private_network_a,
-                                                 private_network_b])
+    jumphost = create_jumphost(private_networks=[
+        private_network_a,
+        private_network_b
+    ])
 
-    # Create servers each connected only to it's own private network
+    # Create servers each connected only to its own private network
     s1, s2 = in_parallel(create_server, instances=(
         {
-            'name': 's1',
-            'image': image,
-            'interfaces': [{'network': private_network_a.uuid}],
-            'jump_host': jumphost,
+            "name": "s1",
+            "image": image,
+            "interfaces": [{"network": private_network_a.uuid}],
+            "jump_host": jumphost,
         },
         {
-            'name': 's2',
-            'image': image,
-            'interfaces': [{'network': private_network_b.uuid}],
-            'jump_host': jumphost,
+            "name": "s2",
+            "image": image,
+            "interfaces": [{"network": private_network_b.uuid}],
+            "jump_host": jumphost,
         },
     ))
 
     # Each server can ping the other over private IPv4
-    s1.ping(s2.ip('private', 4), tries=5, wait=1)
-    s2.ping(s1.ip('private', 4), tries=5, wait=1)
+    s1.ping(s2.ip("private", 4), tries=5, wait=1)
+    s2.ping(s1.ip("private", 4), tries=5, wait=1)

@@ -7,7 +7,6 @@ You can connect private networks to each other using routers, or connect
 private networks to the internet through routers acting as internet gateways:
 
 """
-import time
 
 from constants import PUBLIC_PING_TARGETS
 from util import in_parallel, assert_reverse_pointer
@@ -46,8 +45,9 @@ def test_internet_gateway(
         jump_host=jumpost,
     )
 
-    # Ping a public IP: Verifies that the server cat access the internet
-    private_server.ping(PUBLIC_PING_TARGETS[4], tries=5, wait=1)
+    # Ping a public IP: Verifies that the server cat access the internet.
+    # Wait up to 30 seconds (wait * tries) for the gateway port to come UP.
+    private_server.ping(PUBLIC_PING_TARGETS[4], tries=30, wait=1)
 
     # Verify initial reverse pointers were published
     initial_public_addresses = internet_gateway.internet_gateway_addresses
@@ -56,7 +56,7 @@ def test_internet_gateway(
     # Disable the internet gateway
     internet_gateway.update(internet_gateway=False)
 
-    # Ping a public IP: Verifies that the server cannot access the internet
+    # Ping a public IP: Verifies that the server cannot access the internet.
     private_server.ping(
         PUBLIC_PING_TARGETS[4],
         tries=5,
@@ -74,11 +74,9 @@ def test_internet_gateway(
     updated_public_addresses = internet_gateway.internet_gateway_addresses
     assert_reverse_pointer(updated_public_addresses)
 
-    # Wait a bit for the internet gateway port to come up
-    time.sleep(5)
-
-    # Ping a public IP: Verifies that the server can access the internet again
-    private_server.ping(PUBLIC_PING_TARGETS[4], tries=5, wait=1)
+    # Ping a public IP: Verifies that the server can access the internet again.
+    # Wait up to 30 seconds (wait * tries) for the gateway port to come UP.
+    private_server.ping(PUBLIC_PING_TARGETS[4], tries=30, wait=1)
 
 
 def test_router_connected_private_networks(

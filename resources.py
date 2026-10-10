@@ -1451,6 +1451,23 @@ class LoadBalancer(CloudscaleResource):
         self.pool_members = list(filter(lambda x: x['uuid'] != member["uuid"],
                                         self.pool_members))
 
+    @with_trigger('load-balancer.remove-pool')
+    def remove_pool(self, pool):
+        self.api.delete(f'load-balancers/pools/{pool["uuid"]}')
+        self.pools = [p for p in self.pools if p['uuid'] != pool['uuid']]
+
+    @with_trigger('load-balancer.remove-listener')
+    def remove_listener(self, listener):
+        self.api.delete(f'load-balancers/listeners/{listener["uuid"]}')
+        self.listeners = [lis for lis in self.listeners
+                          if lis['uuid'] != listener['uuid']]
+
+    @with_trigger('load-balancer.remove-health-monitor')
+    def remove_health_monitor(self, hm):
+        self.api.delete(f'load-balancers/health-monitors/{hm["uuid"]}')
+        self.health_monitors = [h for h in self.health_monitors
+                                if h['uuid'] != hm['uuid']]
+
     @with_trigger('load-balancer.disable-pool-member')
     def toggle_pool_member(self, pool, member, enabled=True):
         self.api.patch(

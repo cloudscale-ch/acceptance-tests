@@ -1,6 +1,3 @@
-# Ignore .idea directory (Jetbrains IDEs - e.g., IntelliJ)
-.idea
-
 # Ignore tox directory
 /.tox
 

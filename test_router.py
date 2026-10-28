@@ -9,6 +9,7 @@ private networks to the internet through routers acting as internet gateways:
 """
 import secrets
 
+import pytest
 from constants import PUBLIC_PING_TARGETS
 from util import in_parallel, assert_reverse_pointer
 
@@ -69,6 +70,7 @@ def test_internet_gateway(
     private_server.ping(PUBLIC_PING_TARGETS[4], tries=30, wait=1)
 
 
+@pytest.mark.reverse_ptr
 def test_reverse_ptr_record_of_router(internet_gateway):
     # Verify initial reverse pointers were published
     initial_public_addresses = internet_gateway.internet_gateway_addresses

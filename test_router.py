@@ -7,6 +7,7 @@ You can connect private networks to each other using routers, or connect
 private networks to the internet through routers acting as internet gateways:
 
 """
+import secrets
 
 from constants import PUBLIC_PING_TARGETS
 from util import in_parallel, assert_reverse_pointer
@@ -45,18 +46,14 @@ def test_internet_gateway(
         jump_host=jumpost,
     )
 
-    # Ping a public IP: Verifies that the server cat access the internet.
-    # Wait up to 30 seconds (wait * tries) for the gateway port to come UP.
+    # Ping a public IP: Verifies that the server cat access the internet
+    # Wait up to 30 seconds (wait * tries) for the gateway port to come UP
     private_server.ping(PUBLIC_PING_TARGETS[4], tries=30, wait=1)
-
-    # Verify initial reverse pointers were published
-    initial_public_addresses = internet_gateway.internet_gateway_addresses
-    assert_reverse_pointer(initial_public_addresses)
 
     # Disable the internet gateway
     internet_gateway.update(internet_gateway=False)
 
-    # Ping a public IP: Verifies that the server cannot access the internet.
+    # Ping a public IP: Verifies that the server cannot access the internet
     private_server.ping(
         PUBLIC_PING_TARGETS[4],
         tries=5,
@@ -64,19 +61,39 @@ def test_internet_gateway(
         expect_failure=True
     )
 
+    # Re-enable the internet gateway
+    internet_gateway.update(internet_gateway=True)
+
+    # Ping a public IP: Verifies that the server can access the internet again
+    # Wait up to 30 seconds (wait * tries) for the gateway port to come UP
+    private_server.ping(PUBLIC_PING_TARGETS[4], tries=30, wait=1)
+
+
+def test_reverse_ptr_record_of_router(internet_gateway):
+    # Verify initial reverse pointers were published
+    initial_public_addresses = internet_gateway.internet_gateway_addresses
+    assert_reverse_pointer(initial_public_addresses)
+
+    # Disable the internet gateway
+    internet_gateway.update(internet_gateway=False)
+
     # Verify initial reverse pointers were reset
     assert_reverse_pointer(initial_public_addresses)
+
+    # Rename the router to a FQDN, which gets published as a reverse pointer
+    secret = secrets.token_hex(4)
+    router_fqdn = f'router-at-{secret}.example.org'
+    internet_gateway.update(name=router_fqdn)
 
     # Re-enable the internet gateway
     internet_gateway.update(internet_gateway=True)
 
     # Verify updated reverse pointers were published
+    internet_gateway.refresh()
     updated_public_addresses = internet_gateway.internet_gateway_addresses
+    for address in updated_public_addresses:
+        assert router_fqdn == address["reverse_ptr"]
     assert_reverse_pointer(updated_public_addresses)
-
-    # Ping a public IP: Verifies that the server can access the internet again.
-    # Wait up to 30 seconds (wait * tries) for the gateway port to come UP.
-    private_server.ping(PUBLIC_PING_TARGETS[4], tries=30, wait=1)
 
 
 def test_router_connected_private_networks(

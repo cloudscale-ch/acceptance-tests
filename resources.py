@@ -76,6 +76,7 @@ class CloudscaleResource:
             server = new_focal_server(flavor='flex-4-1')
 
         """
+
         def create_resource_factory(**parameters):
             resource = cls(**{**defaults, **parameters})
             resource.create()
@@ -1133,13 +1134,13 @@ class FloatingIP(CloudscaleResource):
 class Volume(CloudscaleResource):
 
     def __init__(
-        self,
-        request,
-        api,
-        size=None,
-        zone=None,
-        volume_type='ssd',
-        volume_snapshot_uuid=None,
+            self,
+            request,
+            api,
+            size=None,
+            zone=None,
+            volume_type='ssd',
+            volume_snapshot_uuid=None,
     ):
         super().__init__(request, api)
 
@@ -1348,7 +1349,6 @@ class CustomImage(CloudscaleResource):
 
                 continue
             if current_status == 'success':
-
                 return
 
             raise RuntimeError(f"Custom Image Import has unexpected status: "
@@ -1509,7 +1509,6 @@ class LoadBalancer(CloudscaleResource):
 class Router(CloudscaleResource):
 
     def __init__(self, request, api, name, zone, internet_gateway):
-
         super().__init__(request, api)
         self.spec = {
             'name': generate_server_name(request, name),
@@ -1546,6 +1545,7 @@ class Router(CloudscaleResource):
 
     # will be removed when interfaces become a toplevel resource
     def delete(self):
+        self.update(extra_routes=[])
         for interface in self.interfaces:
             self.remove_interface(interface)
         self.api.delete(self.href)

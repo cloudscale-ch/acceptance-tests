@@ -31,7 +31,6 @@ def test_public_ip_address_on_all_images(create_server, ip_version, image):
 
     # We walk all interfaces to ensure one global address per IP version
     def assert_one_global_address():
-
         # Get all configured global IP addresses of the given version
         addrs = server.configured_ip_addresses()
         addrs = [a for a in addrs if is_public(a) and a.version == ip_version]
@@ -148,7 +147,7 @@ def test_public_network_port_security(ip_version, two_servers_in_same_subnet):
     ettercap_params = oneliner(f'''
         -M {mtm_method}:remote
         '/{ipv4}/{ipv6};{ll_addr_v6}/'
-        '/{ipv4_gateway};{ipv4_gateway+1};{ipv4_gateway+2}/{ipv6_gateway}/'
+        '/{ipv4_gateway};{ipv4_gateway + 1};{ipv4_gateway + 2}/{ipv6_gateway}/'
     ''')
 
     # The attacker starts poisoning the environment
@@ -204,6 +203,7 @@ def test_public_network_ipv4_only_on_all_images(prober, create_server, image):
     assert len(v6) == 0
 
 
+@pytest.mark.reverse_ptr
 def test_reverse_ptr_record_of_server(create_server):
     """ The reverse PTR record of a server is set to the name of the server,
     *if* the server name is a FQDN.
@@ -228,6 +228,7 @@ def test_reverse_ptr_record_of_server(create_server):
         msg=f'Unexpected reverse PTR {server.name} after 60 seconds')
 
 
+@pytest.mark.reverse_ptr
 @pytest.mark.parametrize('ip_version', [4, 6], ids=['IPv4', 'IPv6'])
 def test_reverse_ptr_record_of_floating_ip(
         create_floating_ip, region, ip_version):

@@ -55,14 +55,15 @@ These tests are run regularly against our public infrastructure as well as our i
 |                           | [test_private_network_attach_later](./test_private_network.py#L371)              | default  |
 |                           | [test_private_network_dhcp_dns_replies](./test_private_network.py#L408)          | default  |
 | **Public Network**        | [test_public_ip_address_on_all_images](./test_public_network.py#L22)             | all      |
-|                           | [test_public_network_connectivity_on_all_images](./test_public_network.py#L51)   | all      |
-|                           | [test_public_network_mtu](./test_public_network.py#L70)                          | default  |
-|                           | [test_public_network_port_security](./test_public_network.py#L102)               | default  |
-|                           | [test_public_network_ipv4_only_on_all_images](./test_public_network.py#L186)     | all      |
-|                           | [test_reverse_ptr_record_of_server](./test_public_network.py#L207)               | default  |
+|                           | [test_public_network_connectivity_on_all_images](./test_public_network.py#L50)   | all      |
+|                           | [test_public_network_mtu](./test_public_network.py#L69)                          | default  |
+|                           | [test_public_network_port_security](./test_public_network.py#L101)               | default  |
+|                           | [test_public_network_ipv4_only_on_all_images](./test_public_network.py#L185)     | all      |
+|                           | [test_reverse_ptr_record_of_server](./test_public_network.py#L206)               | default  |
 |                           | [test_reverse_ptr_record_of_floating_ip](./test_public_network.py#L231)          | default  |
-| **Router**                | [test_internet_gateway](./test_router.py#L15)                                    | default  |
-|                           | [test_router_connected_private_networks](./test_router.py#L82)                   | default  |
+| **Router**                | [test_internet_gateway](./test_router.py#L17)                                    | default  |
+|                           | [test_reverse_ptr_record_of_router](./test_router.py#L73)                        | default  |
+|                           | [test_router_connected_private_networks](./test_router.py#L101)                  | default  |
 | **Server**                | [test_change_flavor_from_flex_to_flex](./test_server.py#L21)                     | default  |
 |                           | [test_change_flavor_from_flex_to_plus](./test_server.py#L43)                     | default  |
 |                           | [test_change_flavor_from_plus_to_flex](./test_server.py#L65)                     | default  |
@@ -124,6 +125,18 @@ To only run a specific test, run py.test as follows:
 
 ```console
 py.test . -k <test-name>
+```
+
+### Excluding Tests with Custom Markers
+
+Some tests are grouped by custom markers. You can find all available custom markers and their description in `pytest.ini`. To run or exclude all tests with a specific marker, run py.test as follows:
+
+```console
+# Run only tests with a specific marker
+py.test . -m "<custom-marker>"
+    
+# Exclude all tests with a specific marker
+py.test . -m "not <custom-marker>"
 ```
 
 ### Running Tests Against a Specific Image

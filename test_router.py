@@ -156,3 +156,96 @@ def test_router_connected_private_networks(
     # Each server can ping the other over private IPv4
     s1.ping(s2.ip("private", 4), tries=5, wait=1)
     s2.ping(s1.ip("private", 4), tries=5, wait=1)
+
+
+def test_peering_connected_private_networks(
+        create_router,
+        create_server,
+        create_jumphost,
+        create_private_network,
+        image,
+):
+    """ Test to create two routers between three private networks. """
+
+    # Create a pair of routers
+    router_a = create_router(name='router-a')
+    router_b = create_router(name='router-b')
+
+    # Create three private networks
+    private_network_a = create_private_network()
+    private_network_b = create_private_network()
+    private_network_c = create_private_network()  # Peering Network
+
+    subnet_a = private_network_a.add_subnet(
+        cidr="10.10.10.0/24",
+        gateway_address="10.10.10.1",
+    )
+    subnet_b = private_network_b.add_subnet(
+        cidr="10.10.20.0/24",
+        gateway_address="10.10.20.1",
+    )
+    subnet_c = private_network_c.add_subnet(
+        cidr="10.10.0.0/24",
+    )
+
+    # Attach the routers to their respective private and peering subnets
+    router_a.add_interface(
+        network=private_network_a.uuid,
+        subnet=subnet_a.uuid,
+        address="10.10.10.1"
+    )
+    router_a.add_interface(
+        network=private_network_c.uuid,
+        subnet=subnet_c.uuid,
+        address="10.10.0.10"
+    )
+    router_b.add_interface(
+        network=private_network_b.uuid,
+        subnet=subnet_b.uuid,
+        address="10.10.20.1"
+    )
+    router_b.add_interface(
+        network=private_network_c.uuid,
+        subnet=subnet_c.uuid,
+        address="10.10.0.20"
+    )
+
+    # Add extra routes to correctly forward traffic
+    router_a.update(extra_routes=[
+        {
+            "destination": "10.10.20.0/24",
+            "next_hop": "10.10.0.20"
+        }
+    ])
+    router_b.update(extra_routes=[
+        {
+            "destination": "10.10.10.0/24",
+            "next_hop": "10.10.0.10"
+        }
+    ])
+
+    # Create jumpost
+    jumphost = create_jumphost(private_networks=[
+        private_network_a,
+        private_network_b
+    ])
+
+    # Create servers each connected only to its own private network
+    server_a, server_b = in_parallel(create_server, instances=(
+        {
+            "name": "s1",
+            "image": image,
+            "interfaces": [{"network": private_network_a.uuid}],
+            "jump_host": jumphost,
+        },
+        {
+            "name": "s2",
+            "image": image,
+            "interfaces": [{"network": private_network_b.uuid}],
+            "jump_host": jumphost,
+        },
+    ))
+
+    # Each server can ping the other over private IPv4
+    server_a.ping(server_b.ip("private", 4), tries=5, wait=1)
+    server_b.ping(server_a.ip("private", 4), tries=5, wait=1)

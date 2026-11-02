@@ -136,8 +136,8 @@ class API(requests.Session):
         try:
             response.raise_for_status()
         except requests.exceptions.HTTPError as e:
-            ignore = e.request.method == 'DELETE' \
-                and e.response.status_code == 404
+            ignore = (e.request.method == 'DELETE'
+                      and e.response.status_code == 404)
 
             if not ignore:
                 raise e
@@ -190,6 +190,10 @@ class API(requests.Session):
 
             # will be removed when interfaces become a toplevel resource
             if 'routers' in r['href']:
+                try:
+                    self.patch(r['href'], json={"extra_routes": []})
+                except Exception as e:
+                    exceptions.append(e)
                 for iface in r['interfaces']:
                     href = f'routers/{r["uuid"]}/interfaces/{iface["uuid"]}'
                     try:

@@ -856,6 +856,28 @@ def unique(iterable):
     return set(iterable)
 
 
+class FakeBackend:
+    """ A fake Server for use as an LBaaS pool member with a fixed address,
+    for tests that exercise the control-plane API without real VMs.
+
+    Satisfies the duck-type expected by LoadBalancer.add_pool_member:
+    - name: used in the member resource name
+    - ip_address_config(): returns the address and subnet UUID
+
+    """
+
+    def __init__(self, name, address, subnet_uuid):
+        self.name = name
+        self._address = address
+        self._subnet_uuid = subnet_uuid
+
+    def ip_address_config(self, *args, **kwargs):
+        return {
+            'address': self._address,
+            'subnet': {'uuid': self._subnet_uuid},
+        }
+
+
 @contextmanager
 def assert_takes_no_longer_than(seconds):
     """ Asserts that inside of the "with" block takes no longer than the

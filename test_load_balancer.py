@@ -17,6 +17,7 @@ from util import retry_for
 from util import setup_lbaas_http_test_server
 from util import setup_lbaas_udp_test_server
 from util import start_persistent_download
+from util import FakeBackend
 from util import unique
 from util import wait_for_load_balancer_ready
 from util import wait_for_url_ready
@@ -298,7 +299,7 @@ def test_balancing_algorithm_source_ip(
     clients = in_parallel(
         create_server,
         instances=({
-            'name': f'client{i+1}',
+            'name': f'client{i + 1}',
             'image': image,
         } for i in range(4))
     )
@@ -850,6 +851,89 @@ def test_proxy_protocol(prober, create_load_balancer_scenario, proxy_protocol):
     prober.http_get(load_balancer.build_url(addr_family=6))
     logs = backend.output_of('journalctl --user-unit lbaas-http-test-server')
     assert expected_log_line[proxy_protocol] in logs
+
+
+def test_load_balancer_api_reliability(
+        create_load_balancer, create_private_network,
+):
+    """ Verify that pools, members, listeners and health monitors can be
+    created, deleted, and recreated without any API calls failing.
+
+    Uses FakeBackend instances with fixed addresses instead of real VMs,
+    testing the LBaaS control-plane API without standing up backend servers.
+
+    """
+
+    pools = 5
+    members_per_pool = 10
+    listeners_per_pool = 2
+    runs = 2
+    subnet_cidr = '10.0.0.0/24'
+    member_ip_start = 5
+    listener_base_port = 8000
+
+    assert pools * members_per_pool <= 249, 'Too many members (IP exhaustion)'
+
+    # Create a private network with a subnet for the fixed member addresses
+    private_network = create_private_network()
+    subnet = private_network.add_subnet(cidr=subnet_cidr)
+
+    # Create a load balancer and wait for it to reach running state
+    load_balancer = create_load_balancer()
+    load_balancer.wait_for('running', seconds=120)
+
+    for run_n in range(runs):
+        ip_counter = member_ip_start
+        port_counter = listener_base_port + run_n * pools * listeners_per_pool
+        created = []  # tracks resources created in this run for deletion
+
+        for pool_n in range(pools):
+
+            # Create a pool
+            pool = load_balancer.add_pool(
+                f'bench-{pool_n}', 'round_robin', 'tcp',
+            )
+
+            # Add members using fixed addresses, no real VMs needed
+            members = []
+            for member_n in range(members_per_pool):
+                ip = f'10.0.0.{ip_counter}'
+                ip_counter += 1
+                fake = FakeBackend(
+                    f'bench-{pool_n}-{member_n}', ip, subnet.uuid)
+                member = load_balancer.add_pool_member(
+                    pool, fake, private_network)
+                members.append(member)
+
+            # Add listeners
+            listeners = []
+            for listener_n in range(listeners_per_pool):
+                listener = load_balancer.add_listener(
+                    pool,
+                    port_counter,
+                    name=f'bench-{pool_n}-{listener_n}',
+                )
+                listeners.append(listener)
+                port_counter += 1
+
+            # Add a health monitor
+            hm = load_balancer.add_health_monitor(pool, 'tcp', None)
+
+            created.append({
+                'pool': pool,
+                'members': members,
+                'listeners': listeners,
+                'hm': hm,
+            })
+
+        # Delete the resources created in this run
+        for item in reversed(created):
+            for listener in reversed(item['listeners']):
+                load_balancer.remove_listener(listener)
+            load_balancer.remove_health_monitor(item['hm'])
+            for member in reversed(item['members']):
+                load_balancer.remove_pool_member(item['pool'], member)
+            load_balancer.remove_pool(item['pool'])
 
 
 def test_ping(prober, create_load_balancer_scenario, floating_ipv4,

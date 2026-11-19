@@ -1517,6 +1517,7 @@ class Router(CloudscaleResource):
             'internet_gateway': internet_gateway,
         }
         self.interfaces = []
+        self.extra_routes = []
 
     @with_trigger('router.create')
     def create(self):
@@ -1544,8 +1545,29 @@ class Router(CloudscaleResource):
         self.interfaces = [x for x in self.interfaces
                            if x['uuid'] != interface["uuid"]]
 
+    @with_trigger('router.add-extra_route')
+    def add_extra_route(self, destination, next_hop):
+        self.extra_routes.append(self.api.post(
+            f'routers/{self.uuid}/extra-routes',
+            json={
+                'destination': destination,
+                'next_hop': next_hop
+            },
+            # This request does not support tagging
+            add_tags=False).json())
+        return self.extra_routes[-1]
+
+    @with_trigger('reouter.remove-extra-routes')
+    def remove_extra_route(self, extra_route):
+        self.api.delete(
+            f'routers/{self.uuid}/extra-routes/{extra_route["uuid"]}')
+        self.extra_routes = [x for x in self.extra_routes
+                             if x['uuid'] != extra_route["uuid"]]
+
     # will be removed when interfaces become a toplevel resource
     def delete(self):
+        for extra_route in self.extra_routes:
+            self.remove_extra_route(extra_route)
         for interface in self.interfaces:
             self.remove_interface(interface)
         self.api.delete(self.href)

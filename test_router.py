@@ -156,3 +156,89 @@ def test_router_connected_private_networks(
     # Each server can ping the other over private IPv4
     s1.ping(s2.ip("private", 4), tries=5, wait=1)
     s2.ping(s1.ip("private", 4), tries=5, wait=1)
+
+
+def test_peering_connected_private_networks(
+        create_router,
+        create_server,
+        create_jumphost,
+        create_private_network,
+        image,
+):
+    """ Test to create two routers between three private networks. """
+
+    # Create a pair of routers
+    router_a = create_router(name='router-a')
+    router_b = create_router(name='router-b')
+
+    # Create three private networks
+    private_network_a = create_private_network()
+    private_network_b = create_private_network()
+    peering_network = create_private_network()
+
+    subnet_a = private_network_a.add_subnet(
+        cidr="10.10.10.0/24",
+    )
+    subnet_b = private_network_b.add_subnet(
+        cidr="10.10.20.0/24",
+    )
+    peering_subnet = peering_network.add_subnet(
+        cidr="10.10.0.0/24",
+    )
+
+    # Attach the routers to their respective private and peering subnets
+    router_a.add_interface(
+        network=private_network_a.uuid,
+        subnet=subnet_a.uuid,
+        address="10.10.10.1"
+    )
+    router_a.add_interface(
+        network=peering_network.uuid,
+        subnet=peering_subnet.uuid,
+        address="10.10.0.10"
+    )
+    router_b.add_interface(
+        network=private_network_b.uuid,
+        subnet=subnet_b.uuid,
+        address="10.10.20.1"
+    )
+    router_b.add_interface(
+        network=peering_network.uuid,
+        subnet=peering_subnet.uuid,
+        address="10.10.0.20"
+    )
+
+    # Add extra routes to correctly forward traffic
+    router_a.add_extra_route(
+        destination="10.10.20.0/24",
+        next_hop="10.10.0.20"
+    )
+    router_b.add_extra_route(
+        destination="10.10.10.0/24",
+        next_hop="10.10.0.10"
+    )
+
+    # Create servers each connected only to its own private network
+    server_a, server_b = in_parallel(create_server, instances=(
+        {
+            "name": "s1",
+            "image": image,
+            "interfaces": [{"network": "public"},
+                           {"network": private_network_a.uuid}],
+        },
+        {
+            "name": "s2",
+            "image": image,
+            "interfaces": [{"network": "public"},
+                           {"network": private_network_b.uuid}],
+        },
+    ))
+
+    # The routes for the routers must set manually, since the public network
+    # already provides the default route
+    server_a.run("sudo ip route add 10.0.0.0/8 via 10.10.10.1")
+    server_b.run("sudo ip route add 10.0.0.0/8 via 10.10.20.1")
+
+    # Each server can ping the other over private IPv4
+    server_a.ping(server_b.ip("private", 4), tries=5, wait=1)
+    server_b.ping(server_a.ip("private", 4), tries=5, wait=1)

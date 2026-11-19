@@ -190,6 +190,13 @@ class API(requests.Session):
 
             # will be removed when interfaces become a toplevel resource
             if 'routers' in r['href']:
+                for route in r["extra_routes"]:
+                    href = f'routers/{r["uuid"]}/extra-routes/{route["uuid"]}'
+                    try:
+                        self.delete(href)
+                    except Exception as e:
+                        exceptions.append(e)
+
                 for iface in r['interfaces']:
                     href = f'routers/{r["uuid"]}/interfaces/{iface["uuid"]}'
                     try:

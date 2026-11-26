@@ -4,7 +4,7 @@ import textwrap
 import tempfile
 import time
 
-from constants import IMAGE_SPECIFIC_USER_DATA
+from constants import IMAGE_SPECIFIC_USER_DATA, ROOT_VOLUME_SIZE
 from contextlib import suppress
 from datetime import datetime
 from datetime import timedelta
@@ -154,6 +154,8 @@ class Server(CloudscaleResource):
         if isinstance(self.spec['image'], dict):
             self.spec['image'] = self.spec['image']['slug']
 
+        self.spec['volume_size_gb'] = ROOT_VOLUME_SIZE[self.spec['image']]
+
         # Warn if jump-host is missing
         if not self.has_public_interface and jump_host is None:
             raise ServerError(
@@ -175,7 +177,6 @@ class Server(CloudscaleResource):
             'flavor': 'flex-4-1',
             'image': self.request.config.option.default_image['slug'],
             'zone': self.request.config.option.zone,
-            'volume_size_gb': 10,
             'use_public_network': True,
             'use_ipv6': True,
             'ssh_keys': self.request.getfixturevalue('all_public_keys'),

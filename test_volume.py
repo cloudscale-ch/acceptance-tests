@@ -11,6 +11,7 @@ volumes that can be attached, detached, and resized.
 import time
 import pytest
 
+from constants import ROOT_VOLUME_SIZE
 from requests.exceptions import HTTPError
 from util import extract_number
 from warnings import warn
@@ -60,14 +61,18 @@ def test_expand_volume_online_on_all_images(create_server, image):
 
     It can then be live resized.
 
+    On some images (currently only flatcar) the root volume can be bigger than
+    10GiB. These images have a custem entry in ROOT_VOLUME_SIZE in constants.py
     """
 
-    # Test the default server which comes with 10GiB of storage
+    # Test the default server which usually comes with 10GiB of storage
     server = create_server(image=image)
 
-    # Ensure that the device size is 10 GiB
+    root_volume_size = ROOT_VOLUME_SIZE[image['slug']]
+
+    # Ensure that the device size is the value set during the server creation.
     command = 'lsblk --bytes --nodeps --noheadings --output SIZE /dev/sda'
-    assert server.output_of(command) == str(10 * GiB)
+    assert server.output_of(command) == str(root_volume_size * GiB)
 
     # Resize the root disk to 16 GiB
     server.scale_root_disk(16)

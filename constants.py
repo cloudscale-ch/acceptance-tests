@@ -2,6 +2,7 @@ import json
 import os
 import re
 import secrets
+from collections import defaultdict
 
 from hashlib import blake2b
 
@@ -117,3 +118,9 @@ IMAGE_SPECIFIC_USER_DATA = {
         }
     }),
 }
+
+
+# Default image size in captain in GiB
+ROOT_VOLUME_SIZE = defaultdict(lambda: 10)
+# Images that need a different root volume size
+ROOT_VOLUME_SIZE['flatcar-stable'] = 13
